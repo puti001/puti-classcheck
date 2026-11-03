@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Puti-AI | 學生手機/平板即時投票端</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Zen Maru Gothic', sans-serif; -webkit-tap-highlight-color: transparent; }
+    body {
+      background: #FFFDF9;
+      color: #2D3748;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .card {
+      background: #FFF;
+      border-radius: 24px;
+      border: 2px solid rgba(255, 159, 28, 0.25);
+      box-shadow: 0 12px 35px rgba(0,0,0,0.06);
+      width: 100%;
+      max-width: 440px;
+      padding: 24px 20px;
+      text-align: center;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .status-badge {
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .status-badge.connected { background: #EBFBEE; color: #2B8A3E; border: 1px solid #B2F2BB; }
+    .status-badge.connecting { background: #FFF3BF; color: #D9480F; }
+    .room-badge {
+      background: #E7F5FF;
+      color: #1971C2;
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 9999px;
+    }
+    h2 { font-size: 1.3rem; font-weight: 900; margin: 12px 0 18px 0; color: #2D3748; line-height: 1.4; }
+    .options-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .vote-btn {
+      background: #F8F9FA;
+      border: 2px solid #E2E8F0;
+      border-radius: 16px;
+      padding: 15px 16px;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #2D3748;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .vote-btn:active {
+      transform: scale(0.98);
+    }
+    .vote-btn.selected {
+      background: #FFE8CC;
+      border-color: #FF9F1C;
+      color: #D9480F;
+      box-shadow: 0 4px 14px rgba(255, 159, 28, 0.25);
+    }
+    .vote-btn.selected::after {
+      content: '✔';
+      font-size: 1.2rem;
+      color: #FF7B00;
+      font-weight: 900;
+    }
+    .success-box {
+      display: none;
+      background: #EBFBEE;
+      color: #2B8A3E;
+      border: 1px solid #B2F2BB;
+      padding: 12px;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 0.92rem;
+      margin-top: 10px;
+      animation: popIn 0.25s ease;
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header-bar">
+      <div class="status-badge connecting" id="conn-badge">
+        <i class="fa-solid fa-circle-notch fa-spin"></i> 連線中...
+      </div>
+      <div class="room-badge" id="room-badge">教室：--</div>
+    </div>
+
+    <h2 id="poll-title">正在載入大螢幕題目...</h2>
+
+    <div class="options-grid" id="options-container">
+      <div style="color: #A0AEC0; padding: 30px 0; font-size: 0.95rem;">
+        <i class="fa-solid fa-spinner fa-spin"></i> 請稍候，題目將自動出現在手機上...
+      </div>
+    </div>
+
+    <div class="success-box" id="success-box">
+      <i class="fa-solid fa-circle-check"></i> 投票成功！大螢幕已即時計入您的票數。
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const room = urlParams.get('room') || localStorage.getItem('puti_classroom_room') || 'DEFAULT';
+    
+    // Generate or retrieve persistent student device ID
+    let voterId = localStorage.getItem('puti_student_voter_id');
+    if (!voterId) {
+      voterId = 'v_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('puti_student_voter_id', voterId);
+    }
+
+    document.getElementById('room-badge').textContent = `教室代碼：${room}`;
+    const connBadge = document.getElementById('conn-badge');
+    const titleEl = document.getElementById('poll-title');
+    const container = document.getElementById('options-container');
+    const successBox = document.getElementById('success-box');
+
+    let currentPoll = null;
+    let selectedOptionIdx = null;
+
+    // Brokers list with fallback
+    const brokers = [
+      { host: 'broker.emqx.io', port: 8084, path: '/mqtt' },
+      { host: 'broker.hivemq.com', port: 8884, path: '/mqtt' }
+    ];
+    let brokerIndex = 0;
+    let client = null;
+    let isConnecting = false;
+    let reconnectTimeout = null;
+
+    function initClient() {
+      if (isConnecting || (client && client.isConnected())) return;
+      isConnecting = true;
+
+      const broker = brokers[brokerIndex % brokers.length];
+      const clientId = 'puti_v_' + Math.random().toString(16).substring(2, 10);
+      
+      try {
+        if (client) {
+          try { client.disconnect(); } catch(e) {}
+        }
+        client = new Paho.MQTT.Client(broker.host, broker.port, broker.path, clientId);
+
+        client.onConnectionLost = (responseObject) => {
+          isConnecting = false;
+          if (responseObject.errorCode !== 0) {
+            connBadge.className = 'status-badge connecting';
+            connBadge.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 重新連線中...';
+            brokerIndex++;
+            scheduleReconnect(3000);
+          }
+        };
+
+        client.onMessageArrived = (msg) => {
+          try {
+            const payload = JSON.parse(msg.payloadString);
+            if (payload.type === 'POLL_SYNC') {
+              handlePollSync(payload.poll);
+            } else if (payload.type === 'POLL_RESET') {
+              handlePollReset();
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        };
+
+        client.connect({
+          useSSL: true,
+          timeout: 5,
+          keepAliveInterval: 30,
+          cleanSession: true,
+          onSuccess: () => {
+            isConnecting = false;
+            connBadge.className = 'status-badge connected';
+            connBadge.innerHTML = '<i class="fa-solid fa-signal"></i> 已連線大螢幕';
+            // Subscribe to poll state from host
+            client.subscribe(`puti/class/${room}/poll/state`);
+            
+            // Request current state from host
+            const req = new Paho.MQTT.Message(JSON.stringify({ type: 'REQUEST_POLL_STATE' }));
+            req.destinationName = `puti/class/${room}/poll/req`;
+            client.send(req);
+          },
+          onFailure: (err) => {
+            isConnecting = false;
+            connBadge.className = 'status-badge connecting';
+            connBadge.textContent = '切換線路連線中...';
+            brokerIndex++;
+            scheduleReconnect(3500);
+          }
+        });
+      } catch (err) {
+        isConnecting = false;
+        brokerIndex++;
+        scheduleReconnect(3500);
+      }
+    }
+
+    function scheduleReconnect(delayMs) {
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      reconnectTimeout = setTimeout(initClient, delayMs);
+    }
+
+    initClient();
+
+    // BroadcastChannel Fallback for same-device preview
+    const channel = new BroadcastChannel('puti_classroom_poll_' + room);
+    channel.onmessage = (e) => {
+      if (e.data.type === 'POLL_SYNC') {
+        handlePollSync(e.data.poll);
+      } else if (e.data.type === 'POLL_RESET') {
+        handlePollReset();
+      }
+    };
+    channel.postMessage({ type: 'REQUEST_POLL_STATE' });
+
+    function handlePollSync(newPoll) {
+      if (!newPoll) return;
+      const isNewQuestion = !currentPoll || (currentPoll.question !== newPoll.question);
+      currentPoll = newPoll;
+
+      // 檢查本地是否已有該題的投票紀錄（防重新整理、防重複灌票）
+      const pollKey = 'puti_poll_voted_' + room + '_' + newPoll.question;
+      const savedVote = localStorage.getItem(pollKey);
+
+      if (savedVote !== null && savedVote !== undefined && savedVote !== '') {
+        selectedOptionIdx = parseInt(savedVote, 10);
+        successBox.style.display = 'block';
+        successBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> 您已完成本題投票（可直接點選其他選項修改）。';
+      } else if (isNewQuestion) {
+        selectedOptionIdx = null;
+        successBox.style.display = 'none';
+      }
+      render();
+    }
+
+    function handlePollReset() {
+      selectedOptionIdx = null;
+      successBox.style.display = 'none';
+      render();
+    }
+
+    function render() {
+      if (!currentPoll || !currentPoll.options || currentPoll.options.length === 0) {
+        titleEl.textContent = '題目準備中...';
+        container.innerHTML = '<div style="color: #A0AEC0; padding: 30px 0; font-size: 0.95rem;">大螢幕題目更新時，將自動在此呈現...</div>';
+        return;
+      }
+
+      titleEl.textContent = currentPoll.question;
+      container.innerHTML = currentPoll.options.map((opt, i) => `
+        <button class="vote-btn ${selectedOptionIdx === i ? 'selected' : ''}" data-idx="${i}">
+          <span>${opt}</span>
+        </button>
+      `).join('');
+
+      container.querySelectorAll('.vote-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const newIdx = parseInt(btn.dataset.idx, 10);
+          
+          // 如果點選相同選項，不做重複灌票
+          if (selectedOptionIdx === newIdx) return;
+
+          const prevIdx = selectedOptionIdx;
+          selectedOptionIdx = newIdx;
+          render();
+
+          // Haptic feedback
+          if (navigator.vibrate) navigator.vibrate(50);
+
+          // 本地持久化記錄此題已投票
+          if (currentPoll && currentPoll.question) {
+            localStorage.setItem('puti_poll_voted_' + room + '_' + currentPoll.question, selectedOptionIdx);
+          }
+
+          const voteData = {
+            type: 'VOTE_SUBMITTED',
+            voterId: voterId,
+            optionIndex: selectedOptionIdx,
+            previousOptionIndex: prevIdx, // 允許修改投票，通知大螢幕扣除原票
+            time: Date.now()
+          };
+
+          // Send via MQTT
+          if (client && client.isConnected()) {
+            try {
+              const msg = new Paho.MQTT.Message(JSON.stringify(voteData));
+              msg.destinationName = `puti/class/${room}/poll/vote`;
+              client.send(msg);
+            } catch(e) {}
+          }
+
+          // Also via BroadcastChannel
+          channel.postMessage(voteData);
+
+          successBox.style.display = 'block';
+          successBox.innerHTML = prevIdx !== null 
+            ? '<i class="fa-solid fa-arrows-rotate"></i> 投票已成功修改為新選項！'
+            : '<i class="fa-solid fa-circle-check"></i> 投票成功！大螢幕已即時計入您的票數。';
+        });
+      });
+    }
+  </script>
+</body>
+</html>

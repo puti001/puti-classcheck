@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Puti-AI | 點名作業通</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏫</text></svg>">
+
+  <!-- Google Fonts: Zen Maru Gothic & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Zen+Maru+Gothic:wght@400;500;700;900&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Canvas Confetti & QRCode.js -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pinyin-pro/dist/index.js"></script>
+
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Dynamic Desktop Wallpaper -->
+  <div id="desktop-wallpaper"></div>
+  <div class="wallpaper-overlay"></div>
+
+  <!-- Top App Bar -->
+  <header class="top-bar">
+    <div class="brand-section">
+      <div class="brand-logo-icon">
+        <i class="fa-solid fa-chalkboard-user"></i>
+      </div>
+      <div class="brand-title">Puti-AI <span>點名作業通</span></div>
+          </div>
+
+    
+
+    <div class="top-actions">
+      <!-- Scenario Presets -->
+      <div style="display: flex; gap: 3px; align-items: center; background: #FFF7ED; padding: 2px 6px; border-radius: var(--radius-pill); border: 1px solid #FFEDD5;">
+        <span style="font-size: 0.74rem; font-weight: 800; color: #C2410C;"><i class="fa-solid fa-wand-magic-sparkles"></i> 情境：</span>
+        <button class="scale-btn" id="scen-focus" title="一鍵切換專注上課佈局">🧘 專注</button>
+        <button class="scale-btn" id="scen-compete" title="一鍵切換小組競賽佈局">🏆 競賽</button>
+        <button class="scale-btn" id="scen-dismissal" title="一鍵切換放學總結佈局">🎒 放學</button>
+        <div id="custom-scenarios-bar" style="display: inline-flex; gap: 4px; align-items: center;"></div>
+        <button class="scale-btn" id="scen-save-current" style="color: #2B8A3E; font-weight: 800;" title="將目前桌面擺設儲存為新情境"><i class="fa-solid fa-plus"></i> 存情境</button>
+        <button class="scale-btn" id="scen-manage-btn" style="color: #495057;" title="管理自訂情境"><i class="fa-solid fa-gear"></i></button>
+        <div class="class-selector-wrap" style="display: inline-flex; align-items: center; background: #FFF7ED; padding: 2px 6px; border-radius: var(--radius-pill); border: 1.5px solid #FFD8A8; gap: 3px;">
+          <i class="fa-solid fa-graduation-cap" style="color: #EA580C; font-size: 0.8rem; margin-left: 2px;"></i>
+          <select id="global-class-select" style="border: none; background: transparent; font-weight: 800; color: #C2410C; font-size: 0.8rem; cursor: pointer; outline: none; max-width: 96px;" title="切換上課班級（抽籤、分組、計分連動切換）">
+          </select>
+          <button class="scale-btn" id="btn-global-roster" style="color: #E8590C; font-weight: 800; padding: 1px 6px; font-size: 0.74rem; background: #FFF; border-radius: 6px; border: 1px solid #FFD8A8;" title="管理班級與編輯名冊">
+            <i class="fa-solid fa-gear"></i> 名冊
+          </button>
+        </div>
+      </div>
+
+      <!-- Screen Font Scale Switcher -->
+      <div class="font-scale-group" title="針對 75~86 吋大螢幕切換全域字級">
+        <span style="font-size: 0.72rem; font-weight: 800; color: #4A5568; padding: 0 4px;"><i class="fa-solid fa-text-height"></i> 字級:</span>
+        <button class="scale-btn screen-scale-btn active" data-scale="default">標準 16</button>
+        <button class="scale-btn screen-scale-btn" data-scale="medium">中 20</button>
+        <button class="scale-btn screen-scale-btn" data-scale="large">大 24</button>
+        <button class="scale-btn screen-scale-btn" data-scale="huge">特大 28</button>
+      </div>
+
+      <button class="top-btn" id="btn-user-guide" style="color: #2563EB; font-weight: 800; border-color: #BFDBFE; background: #EFF6FF;" title="使用說明、教學工具庫與問題回報"><i class="fa-solid fa-circle-question"></i> 使用說明</button>
+      <button class="top-btn" id="btn-toggle-desktop" title="一鍵隱藏/還原所有視窗 (桌面淨空)">
+        <i class="fa-solid fa-desktop"></i> 淨空桌面
+      </button>
+      <button class="top-btn" id="btn-open-wallpaper" title="更換桌布與背景風格">
+        <i class="fa-solid fa-image"></i> 桌布
+      </button>
+      <button class="top-btn" id="btn-toggle-sound" title="切換提示音效">
+        <i class="fa-solid fa-volume-high"></i> 音效
+      </button>
+      <button class="top-btn" id="btn-reset-layout" title="恢復預設課堂視窗排列">
+        <i class="fa-solid fa-arrow-rotate-left"></i> 重排
+      </button>
+      <button class="top-btn icon-only" id="btn-fullscreen" title="切換全螢幕模式">
+        <i class="fa-solid fa-expand"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Interactive Window Desktop Canvas -->
+  <main id="desktop-canvas"></main>
+
+  <!-- Bottom Floating Dock -->
+  <div class="bottom-dock-container">
+    <nav class="bottom-dock" aria-label="課堂工具捷徑列">
+      <button class="dock-item" id="dock-traffic" title="紅綠燈">
+        <i class="fa-solid fa-traffic-light" style="color: #FF4757;"></i>
+        <span>紅綠燈</span>
+      </button>
+      <button class="dock-item" id="dock-symbols" title="工作符號">
+        <i class="fa-solid fa-icons" style="color: #9A8CFF;"></i>
+        <span>工作符號</span>
+      </button>
+      <button class="dock-item" id="dock-timer" title="計時器">
+        <i class="fa-solid fa-stopwatch" style="color: #FF6B6B;"></i>
+        <span>計時器</span>
+      </button>
+      <button class="dock-item" id="dock-picker" title="幸運抽籤">
+        <i class="fa-solid fa-bullseye" style="color: #FF9F1C;"></i>
+        <span>抽籤點名</span>
+      </button>
+      <button class="dock-item" id="dock-whiteboard" title="塗鴉白板">
+        <i class="fa-solid fa-paintbrush" style="color: #2EC4B6;"></i>
+        <span>塗鴉白板</span>
+      </button>
+      <button class="dock-item" id="dock-scoreboard" title="小組記分板">
+        <i class="fa-solid fa-trophy" style="color: #FFA502;"></i>
+        <span>小組記分</span>
+      </button>
+      <button class="dock-item" id="dock-buzzer" title="課堂搶答器">
+        <i class="fa-solid fa-bell" style="color: #E63946;"></i>
+        <span>搶答神器</span>
+      </button>
+      <button class="dock-item" id="dock-contact" title="家庭聯絡簿">
+        <i class="fa-solid fa-book-open-reader" style="color: #3A86FF;"></i>
+        <span>家庭聯絡簿</span>
+      </button>
+      <button class="dock-item" id="dock-dice" title="骰子硬幣">
+        <i class="fa-solid fa-dice" style="color: #9A8CFF;"></i>
+        <span>骰子硬幣</span>
+      </button>
+
+      <div class="dock-divider"></div>
+
+      <!-- More Tools Drawer Launcher -->
+      <button class="dock-item dock-item-more" id="dock-more-tools" title="打開全功能課堂工具箱">
+        <i class="fa-solid fa-layer-group" style="color: #FF9F1C; font-size: 1.45rem;"></i>
+        <span style="color: var(--primary); font-weight: 800;">更多工具</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Mandatory Copyright Footer -->
+  <footer class="app-footer-copyright">
+    屏東縣後庄國小黃朝榮老師作品，免費分享，歡迎擴散推廣，嚴禁商用與任何侵權、不尊重著作權的行為，更多 Puti-AI 教學工具 <a href="https://padlet.com/clongwh/puti_ai_tools" target="_blank" rel="noopener noreferrer" aria-label="更多 Puti-AI 教學工具，點此前往" title="前往黃朝榮老師教學工具庫">點此前往</a>
+  </footer>
+
+  <!-- Giant QR Code Lightbox Modal (巨幅投影掃描彈窗) -->
+  <div class="qr-lightbox-backdrop" id="qr-lightbox-modal">
+    <div class="qr-lightbox-box">
+      <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+        <div style="font-weight: 900; font-size: 1.3rem; color: var(--primary);" id="qr-lightbox-title">📱 學生掃碼連線</div>
+        <button class="win-btn btn-close" id="qr-lightbox-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="qr-lightbox-img" style="background: #FFF; padding: 20px; border-radius: 24px; box-shadow: 0 4px 16px rgba(0,0,0,0.1);"></div>
+      <div style="font-size: 1rem; font-weight: 700; color: #4A5568;" id="qr-lightbox-desc">請全班學生拿出平板或手機相機對準掃描</div>
+    </div>
+  </div>
+
+  <!-- 26 Widgets Library / More Tools Modal -->
+  <div class="modal-backdrop" id="widgets-library-modal">
+    <div class="modal-box modal-box-large">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fa-solid fa-shapes" style="color: var(--primary);"></i>
+          <span>課堂工具箱 (全能微工具庫)</span>
+        </div>
+        <button class="win-btn btn-close" id="widget-lib-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Search & Category Filters -->
+      <div class="widget-lib-filter-bar">
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="widget-search-input" placeholder="搜尋工具名稱或關鍵字 (如：聯絡簿、搶答、投票、PDF...)">
+        </div>
+        <div class="category-tabs" id="widget-category-tabs">
+          <button class="cat-pill active" data-cat="all">全部工具</button>
+          <button class="cat-pill" data-cat="time">⏱️ 時間計畫</button>
+          <button class="cat-pill" data-cat="order">📢 秩序經營</button>
+          <button class="cat-pill" data-cat="interactive">🎲 互動遊戲</button>
+          <button class="cat-pill" data-cat="media">📝 繪圖圖像</button>
+          <button class="cat-pill" data-cat="integration">🌐 多媒體整合</button>
+        </div>
+      </div>
+
+      <!-- Widget Grid -->
+      <div class="widget-lib-grid" id="widget-lib-grid">
+        <!-- Generated Dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Student Roster Modal (全班名單編輯器 一行一位) -->
+  <div class="modal-backdrop" id="roster-modal">
+    <div class="modal-box" style="max-width: 520px; width: 92%; max-height: 88vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fa-solid fa-users-line" style="color: #FF7B00;"></i> 多班級學生名冊管理（抽籤/分組/計分共用）
+        </div>
+        <button class="win-btn btn-close" id="roster-modal-close" title="關閉"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- 多班級切換與管理控制列 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; background: #FFF7ED; padding: 8px 12px; border-radius: 10px; border: 1.5px solid #FFD8A8; margin-bottom: 10px; gap: 6px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <label style="font-size: 0.82rem; font-weight: 800; color: #C2410C;"><i class="fa-solid fa-graduation-cap"></i> 當前班級：</label>
+          <select id="modal-class-select" style="padding: 3px 8px; border-radius: 6px; border: 1px solid #FFC078; font-weight: 800; color: #9A3412; background: #FFF; font-size: 0.85rem; outline: none; cursor: pointer;">
+          </select>
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button type="button" class="action-btn-secondary" id="modal-class-add-btn" style="height: 28px; padding: 0 8px; font-size: 0.75rem; border-color: #FDBA74;" title="新增班級"><i class="fa-solid fa-plus"></i> 新增班級</button>
+          <button type="button" class="action-btn-secondary" id="modal-class-rename-btn" style="height: 28px; padding: 0 8px; font-size: 0.75rem; border-color: #FDBA74;" title="重命名當前班級"><i class="fa-solid fa-pen"></i> 改名</button>
+          <button type="button" class="action-btn-secondary" id="modal-class-del-btn" style="height: 28px; padding: 0 8px; font-size: 0.75rem; border-color: #FCA5A5; color: #DC2626;" title="刪除當前班級"><i class="fa-solid fa-trash-can"></i> 刪除</button>
+        </div>
+      </div>
+
+      <div style="font-size: 0.85rem; color: #4A5568; margin-bottom: 8px;">
+        💡 <strong>每行一位學生</strong>（可直接自 Excel、Google 試算表或校務系統複製整欄貼上）：
+      </div>
+
+      <div style="flex: 1; display: flex; flex-direction: column;">
+        <textarea id="roster-modal-textarea" style="width: 100%; height: 260px; padding: 12px; font-size: 1.05rem; line-height: 1.6; border: 2px solid #E2E8F0; border-radius: 12px; font-family: inherit; resize: vertical; outline: none; background: #FFFDF9; box-sizing: border-box;" placeholder="每行一位學生姓名，例如：&#10;01 王小明&#10;02 李大華&#10;03 陳美美&#10;04 林阿力"></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; flex-wrap: wrap; gap: 8px;">
+        <div style="font-size: 0.85rem; font-weight: 800; color: #D9480F;" id="roster-count-info">目前共 0 位同學</div>
+        <div style="display: flex; gap: 6px;">
+          <button type="button" class="action-btn-secondary" id="roster-export-btn" style="height: 34px; font-size: 0.8rem; padding: 0 8px;" title="備份所有班級資料"><i class="fa-solid fa-download"></i> 匯出多班</button>
+          <button type="button" class="action-btn-secondary" id="roster-import-btn" style="height: 34px; font-size: 0.8rem; padding: 0 8px;" title="還原多班級備份"><i class="fa-solid fa-upload"></i> 匯入多班</button>
+          <button type="button" class="action-btn-secondary" id="roster-fill-30-btn" style="height: 34px; font-size: 0.8rem; padding: 0 10px;">填入 1~30 號</button>
+          <button type="button" class="action-btn-secondary" id="roster-clear-btn" style="height: 34px; font-size: 0.8rem; padding: 0 10px;">清空</button>
+          <button type="button" class="action-btn-main" id="roster-save-btn" style="height: 34px; font-size: 0.85rem; padding: 0 16px;"><i class="fa-solid fa-check"></i> 儲存名單</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wallpaper Switcher Modal -->
+  <div class="modal-backdrop" id="wallpaper-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fa-solid fa-palette" style="color: var(--primary);"></i> 精選課堂桌布與背景
+        </div>
+        <button class="win-btn btn-close" id="wp-modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div style="font-weight: 700; font-size: 0.92rem; margin-bottom: 8px;">風格主題桌布</div>
+      <div class="wallpaper-grid" id="wallpaper-preset-grid"></div>
+
+      <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.86rem; font-weight: 700;">
+          <span>背景模糊 (Blur)</span>
+          <input type="range" id="wp-blur-slider" min="0" max="15" value="0" style="width: 150px; cursor: pointer;">
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.86rem; font-weight: 700;">
+          <span>背景暗度 (Dim)</span>
+          <input type="range" id="wp-dim-slider" min="0" max="0.6" step="0.05" value="0.12" style="width: 150px; cursor: pointer;">
+        </div>
+      </div>
+
+      <div style="margin-top: 18px; border-top: 1px dashed var(--border-subtle); padding-top: 14px;">
+        <div style="font-weight: 700; font-size: 0.88rem; margin-bottom: 8px;">自訂圖片網址或本機上傳</div>
+        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+          <input type="url" id="wp-custom-url" placeholder="貼上自訂圖片 URL (https://...)" 
+            style="flex: 1; padding: 6px 12px; border-radius: var(--radius-pill); border: 1px solid var(--border-subtle); outline: none; font-size: 0.85rem;">
+          <button class="action-btn-main" id="wp-apply-url-btn" style="height: 36px; padding: 0 16px; font-size: 0.85rem;">套用</button>
+        </div>
+        <div>
+          <label class="action-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; height: 34px; font-size: 0.82rem; padding: 0 14px;">
+            <i class="fa-solid fa-upload"></i> 上傳電腦圖片
+            <input type="file" id="wp-file-input" accept="image/*" style="display: none;">
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+  <script src="js/realtime-engine.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/window-manager.js"></script>
+  <script src="js/widgets.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

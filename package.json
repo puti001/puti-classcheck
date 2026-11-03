@@ -1,0 +1,21 @@
+{
+  "name": "puti-classcheck",
+  "version": "1.0.0",
+  "description": "Puti-AI 點名作業通 - 專為課堂點名與作業檢查設計之日系暖心教學工具",
+  "scripts": {
+    "dev": "wrangler pages dev public",
+    "deploy": "wrangler pages deploy public --project-name=puti-classcheck"
+  },
+  "keywords": [
+    "classcheck",
+    "puti-ai",
+    "education",
+    "teacher-tools",
+    "cloudflare-pages"
+  ],
+  "author": "黃朝榮 (屏東縣後庄國小)",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  }
+}

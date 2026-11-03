@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Puti-AI | 學生手機即時搶答端</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Outfit:wght@800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Zen Maru Gothic', sans-serif; -webkit-tap-highlight-color: transparent; }
+    body {
+      background: #FFFDF9;
+      color: #2D3748;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow: hidden;
+    }
+    .buzzer-box {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+    .status-badge {
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .status-badge.connected { background: #EBFBEE; color: #2B8A3E; border: 1px solid #B2F2BB; }
+    .status-badge.connecting { background: #FFF3BF; color: #D9480F; }
+    .room-badge {
+      background: #E7F5FF;
+      color: #1971C2;
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 9999px;
+    }
+    .user-info-row {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+    .input-field {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 9999px;
+      border: 2px solid #E2E8F0;
+      font-size: 0.95rem;
+      font-weight: 800;
+      outline: none;
+      text-align: center;
+      background: #FFF;
+    }
+    .input-field:focus {
+      border-color: #FF9F1C;
+    }
+
+    /* Giant 3D Glowing Buzzer */
+    .big-buzzer-btn {
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #FF7B00, #E03131);
+      border: 8px solid #FFF;
+      box-shadow: 0 16px 36px rgba(224, 49, 49, 0.4), inset 0 4px 12px rgba(255, 255, 255, 0.6);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #FFF;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.12s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      position: relative;
+    }
+    .big-buzzer-btn:active {
+      transform: scale(0.92) translateY(8px);
+      box-shadow: 0 6px 16px rgba(224, 49, 49, 0.5);
+    }
+    .big-buzzer-btn.disabled {
+      background: #CED4DA;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.06);
+      border-color: #E9ECEF;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    .big-buzzer-btn.disabled span { color: #868E96; }
+    .big-buzzer-btn.disabled i { color: #868E96; }
+
+    .result-banner {
+      width: 100%;
+      padding: 12px;
+      border-radius: 16px;
+      font-weight: 800;
+      text-align: center;
+      font-size: 0.95rem;
+      display: none;
+      animation: popIn 0.25s ease;
+    }
+    .result-banner.win {
+      display: block;
+      background: #EBFBEE;
+      color: #2B8A3E;
+      border: 1.5px solid #69DB7C;
+    }
+    .result-banner.lose {
+      display: block;
+      background: #FFF3BF;
+      color: #D9480F;
+      border: 1.5px solid #FFE066;
+    }
+    @keyframes popIn {
+      from { transform: scale(0.9); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="buzzer-box">
+    <div class="header-bar">
+      <div class="status-badge connecting" id="conn-badge">
+        <i class="fa-solid fa-circle-notch fa-spin"></i> 連線中...
+      </div>
+      <div class="room-badge" id="room-badge">教室：--</div>
+    </div>
+
+    <div class="user-info-row">
+      <input type="text" class="input-field" id="std-seat" placeholder="座號 (如：05)" maxlength="4" style="max-width: 120px;">
+      <input type="text" class="input-field" id="std-name" placeholder="學生姓名 (如：王小明)">
+    </div>
+
+    <div style="font-size: 0.88rem; font-weight: 800; color: #718096;" id="state-prompt">
+      ⏳ 等待老師按「開始搶答」...
+    </div>
+
+    <!-- Giant 3D Buzzer -->
+    <div class="big-buzzer-btn disabled" id="big-buzz-btn">
+      <i class="fa-solid fa-bell" style="font-size: 3.2rem; margin-bottom: 8px;"></i>
+      <span style="font-size: 1.4rem; font-weight: 900; letter-spacing: 2px;">搶 答</span>
+    </div>
+
+    <div class="result-banner" id="result-banner"></div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const room = urlParams.get('room') || localStorage.getItem('puti_classroom_room') || 'DEFAULT';
+
+    document.getElementById('room-badge').textContent = `教室代碼：${room}`;
+    const connBadge = document.getElementById('conn-badge');
+    const seatInput = document.getElementById('std-seat');
+    const nameInput = document.getElementById('std-name');
+    const buzzBtn = document.getElementById('big-buzz-btn');
+    const statePrompt = document.getElementById('state-prompt');
+    const resultBanner = document.getElementById('result-banner');
+
+    // Restore name & seat
+    seatInput.value = localStorage.getItem('puti_student_seat') || '';
+    nameInput.value = localStorage.getItem('puti_student_name') || '';
+
+    seatInput.addEventListener('change', () => localStorage.setItem('puti_student_seat', seatInput.value.trim()));
+    nameInput.addEventListener('change', () => localStorage.setItem('puti_student_name', nameInput.value.trim()));
+
+    let canBuzz = false;
+    let buzzerState = 'STANDBY'; // 'STANDBY' | 'ACTIVE' | 'LOCKED'
+
+    // Brokers list with fallback
+    const brokers = [
+      { host: 'broker.emqx.io', port: 8084, path: '/mqtt' },
+      { host: 'broker.hivemq.com', port: 8884, path: '/mqtt' }
+    ];
+    let brokerIndex = 0;
+    let client = null;
+    let isConnecting = false;
+    let reconnectTimeout = null;
+
+    function initClient() {
+      if (isConnecting || (client && client.isConnected())) return;
+      isConnecting = true;
+
+      const broker = brokers[brokerIndex % brokers.length];
+      const clientId = 'puti_b_' + Math.random().toString(16).substring(2, 10);
+
+      try {
+        if (client) {
+          try { client.disconnect(); } catch (e) {}
+        }
+        client = new Paho.MQTT.Client(broker.host, broker.port, broker.path, clientId);
+
+        client.onConnectionLost = (responseObject) => {
+          isConnecting = false;
+          if (responseObject.errorCode !== 0) {
+            connBadge.className = 'status-badge connecting';
+            connBadge.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 重新連線中...';
+            brokerIndex++;
+            scheduleReconnect(3000);
+          }
+        };
+
+        client.onMessageArrived = (msg) => {
+          try {
+            const payload = JSON.parse(msg.payloadString);
+            if (payload.type === 'BUZZER_START') {
+              buzzerState = 'ACTIVE';
+              canBuzz = true;
+              buzzBtn.classList.remove('disabled');
+              statePrompt.textContent = '🔥 老師已發布搶答！請立即搶按！';
+              statePrompt.style.color = '#E03131';
+              resultBanner.style.display = 'none';
+              if (navigator.vibrate) navigator.vibrate(80);
+            } else if (payload.type === 'BUZZER_RESET' || payload.type === 'BUZZER_STANDBY') {
+              buzzerState = 'STANDBY';
+              canBuzz = false;
+              buzzBtn.classList.add('disabled');
+              statePrompt.textContent = '⏳ 等待老師按「開始搶答」... 請勿偷跑！';
+              statePrompt.style.color = '#718096';
+              resultBanner.style.display = 'none';
+            } else if (payload.type === 'BUZZER_WINNER') {
+              buzzerState = 'LOCKED';
+              canBuzz = false;
+              buzzBtn.classList.add('disabled');
+              const myId = `${seatInput.value ? seatInput.value + '號 ' : ''}${nameInput.value || '匿名同學'}`;
+              if (payload.winner === myId || payload.seat == seatInput.value) {
+                resultBanner.className = 'result-banner win';
+                resultBanner.innerHTML = '🎉 <strong>太強了！你搶得了第一名回答權！</strong>';
+                if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+              } else {
+                resultBanner.className = 'result-banner lose';
+                resultBanner.innerHTML = `慢了一步！本次由【<strong>${payload.winner}</strong>】搶先回答！`;
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        };
+
+        client.connect({
+          useSSL: true,
+          timeout: 5,
+          keepAliveInterval: 30,
+          cleanSession: true,
+          onSuccess: () => {
+            isConnecting = false;
+            connBadge.className = 'status-badge connected';
+            connBadge.innerHTML = '<i class="fa-solid fa-signal"></i> 已連線大螢幕';
+            client.subscribe(`puti/class/${room}/buzzer/state`);
+            
+            // 通知大螢幕有學生裝置連線加入
+            try {
+              const seatVal = seatInput.value.trim() || '00';
+              const nameVal = nameInput.value.trim() || '同學';
+              const joinMsg = new Paho.MQTT.Message(JSON.stringify({
+                type: 'STUDENT_JOIN',
+                studentId: `${seatVal}_${nameVal}`,
+                seat: seatVal,
+                name: nameVal
+              }));
+              joinMsg.destinationName = `puti/class/${room}/buzzer/buzz`;
+              client.send(joinMsg);
+            } catch(e) {}
+          },
+          onFailure: (err) => {
+            isConnecting = false;
+            connBadge.className = 'status-badge connecting';
+            connBadge.textContent = '切換線路連線中...';
+            brokerIndex++;
+            scheduleReconnect(3500);
+          }
+        });
+      } catch (err) {
+        isConnecting = false;
+        brokerIndex++;
+        scheduleReconnect(3500);
+      }
+    }
+
+    function scheduleReconnect(delayMs) {
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      reconnectTimeout = setTimeout(initClient, delayMs);
+    }
+
+    initClient();
+
+    // 2. BroadcastChannel Fallback
+    const channel = new BroadcastChannel('puti_classroom_buzzer_' + room);
+    channel.onmessage = (e) => {
+      if (e.data.type === 'BUZZER_START') {
+        buzzerState = 'ACTIVE';
+        canBuzz = true;
+        buzzBtn.classList.remove('disabled');
+        statePrompt.textContent = '🔥 老師已發布搶答！請立即搶按！';
+        statePrompt.style.color = '#E03131';
+        resultBanner.style.display = 'none';
+      } else if (e.data.type === 'BUZZER_RESET' || e.data.type === 'BUZZER_STANDBY') {
+        buzzerState = 'STANDBY';
+        canBuzz = false;
+        buzzBtn.classList.add('disabled');
+        statePrompt.textContent = '⏳ 等待老師按「開始搶答」... 請勿偷跑！';
+        statePrompt.style.color = '#718096';
+        resultBanner.style.display = 'none';
+      } else if (e.data.type === 'BUZZER_WINNER') {
+        buzzerState = 'LOCKED';
+        canBuzz = false;
+        buzzBtn.classList.add('disabled');
+        const myId = `${seatInput.value ? seatInput.value + '號 ' : ''}${nameInput.value || '匿名同學'}`;
+        if (e.data.winner === myId) {
+          resultBanner.className = 'result-banner win';
+          resultBanner.innerHTML = '🎉 <strong>太強了！你搶得了第一名！</strong>';
+        } else {
+          resultBanner.className = 'result-banner lose';
+          resultBanner.innerHTML = `慢了一步！由【<strong>${e.data.winner}</strong>】搶先！`;
+        }
+      }
+    };
+
+    // Buzz Click Action
+    buzzBtn.addEventListener('click', () => {
+      if (!canBuzz || buzzerState !== 'ACTIVE') {
+        if (navigator.vibrate) navigator.vibrate([80, 50, 80]);
+        statePrompt.textContent = '⚠️ 老師尚未發布「開始搶答」，請勿偷跑！';
+        statePrompt.style.color = '#E03131';
+        return;
+      }
+
+      const seat = seatInput.value.trim();
+      const name = nameInput.value.trim() || '學生';
+      const displayName = seat ? `${seat}號 ${name}` : name;
+
+      // Haptic vibrate
+      if (navigator.vibrate) navigator.vibrate(100);
+
+      const buzzData = {
+        type: 'BUZZ_TRIGGERED',
+        seat: seat,
+        name: displayName,
+        clientTimestamp: Date.now()
+      };
+
+      // Send via MQTT
+      if (client && client.isConnected()) {
+        try {
+          const msg = new Paho.MQTT.Message(JSON.stringify(buzzData));
+          msg.destinationName = `puti/class/${room}/buzzer/buzz`;
+          client.send(msg);
+        } catch(e) {}
+      }
+
+      // Also BroadcastChannel
+      channel.postMessage(buzzData);
+
+      statePrompt.textContent = '已送出搶答訊號！等待大螢幕裁決...';
+    });
+  </script>
+</body>
+</html>
