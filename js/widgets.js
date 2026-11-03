@@ -6179,7 +6179,9 @@ const ClassroomWidgets = {
         // 學生上傳 QR Code
         qrBtn.addEventListener('click', () => {
           const currentOrigin = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-          const studentUrl = `${currentOrigin}student-hw.html?class=${encodeURIComponent(activeClass)}&date=${encodeURIComponent(currentDate)}&sub=${encodeURIComponent(onlineData.activeSubject)}`;
+          const subsParam = encodeURIComponent(onlineData.subjects.join(','));
+          const currentSub = encodeURIComponent(onlineData.activeSubject);
+          const studentUrl = `${currentOrigin}student-hw.html?class=${encodeURIComponent(activeClass)}&date=${encodeURIComponent(currentDate)}&sub=${currentSub}&subs=${subsParam}`;
 
           if (typeof window.openQRLightbox === 'function') {
             window.openQRLightbox(

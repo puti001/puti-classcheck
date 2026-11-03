@@ -502,27 +502,59 @@
 
       document.getElementById('class-badge').textContent = `🎓 ${currentClassName}`;
 
-      // 載入作業項目清單（預設作業1、作業2、作業3，彈性自由）
-      let subjects = ['作業1', '作業2', '作業3'];
-      try {
-        const onlineStored = JSON.parse(localStorage.getItem(`puti_online_hw_${currentClassId}_${urlDate}`));
-        if (onlineStored && Array.isArray(onlineStored.subjects) && onlineStored.subjects.length > 0) {
-          subjects = onlineStored.subjects;
-        } else {
-          const hwStored = JSON.parse(localStorage.getItem(`puti_hw_check_${currentClassId}_${urlDate}`));
-          if (hwStored && Array.isArray(hwStored.subjects) && hwStored.subjects.length > 0) {
-            subjects = hwStored.subjects;
-          }
-        }
-      } catch(e) {}
+      // 載入作業項目清單（與教師端完全同步）
+      const urlSubs = params.get('subs');
+      let subjects = [];
 
-      // 若老師出碼時指定了特定作業科目，確保加入並選中
-      if (urlSub && !subjects.includes(urlSub)) {
-        subjects.unshift(urlSub);
+      // A. 優先使用教師端出碼時帶入的所有科目清單
+      if (urlSubs) {
+        subjects = decodeURIComponent(urlSubs).split(',').map(s => s.trim()).filter(Boolean);
       }
 
-      let selectedStudent = '';
-      let selectedSubject = urlSub || subjects[0] || '作業1';
+      // B. 若 URL 沒帶，從本地端儲存讀取
+      if (!subjects || subjects.length === 0) {
+        try {
+          const onlineStored = JSON.parse(localStorage.getItem(`puti_online_hw_${currentClassId}_${urlDate}`));
+          if (onlineStored && Array.isArray(onlineStored.subjects) && onlineStored.subjects.length > 0) {
+            subjects = onlineStored.subjects;
+          } else {
+            const hwStored = JSON.parse(localStorage.getItem(`puti_hw_check_${currentClassId}_${urlDate}`));
+            if (hwStored && Array.isArray(hwStored.subjects) && hwStored.subjects.length > 0) {
+              subjects = hwStored.subjects;
+            }
+          }
+        } catch(e) {}
+      }
+
+      if (!subjects || subjects.length === 0) {
+        subjects = ['作業1', '作業2', '作業3'];
+      }
+
+      // C. 強制清洗舊版殘留科目名稱（課堂作業、短文寫作、美勞創作、每日心得）
+      subjects = subjects.map(s => {
+        if (s === '課堂作業') return '作業1';
+        if (s === '短文寫作') return '作業2';
+        if (s === '美勞創作') return '作業3';
+        if (s === '每日心得') return '隨堂測驗';
+        return s;
+      });
+
+      // 去除重複科目
+      subjects = [...new Set(subjects)];
+
+      // D. 若教師端有指定當前作業科目，確保對齊
+      let cleanUrlSub = urlSub ? decodeURIComponent(urlSub).trim() : '';
+      if (cleanUrlSub === '課堂作業') cleanUrlSub = '作業1';
+      if (cleanUrlSub === '短文寫作') cleanUrlSub = '作業2';
+      if (cleanUrlSub === '美勞創作') cleanUrlSub = '作業3';
+      if (cleanUrlSub === '每日心得') cleanUrlSub = '隨堂測驗';
+
+      if (cleanUrlSub) {
+        if (!subjects.includes(cleanUrlSub)) subjects.push(cleanUrlSub);
+        selectedSubject = cleanUrlSub;
+      } else {
+        selectedSubject = subjects[0] || '作業1';
+      }
       let currentMode = 'photo'; // 'photo' | 'text'
       let currentImageBase64 = null;
       let rotationAngle = 0;
