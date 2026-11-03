@@ -4745,13 +4745,28 @@ const ClassroomWidgets = {
   // 課堂點名簿 (Classroom Attendance) - 8大出勤狀態、備註註記、歷史紀錄與匯出匯入
   // =========================================================================
   spawnAttendance(wm) {
-    let roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
-    let activeClass = 'default';
-    try {
-      const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
-      if (classData && classData.activeId) activeClass = classData.activeId;
-    } catch(e){}
+    const getActiveData = () => {
+      let activeClass = 'default';
+      let roster = null;
+      try {
+        const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
+        if (classData && classData.classes) {
+          const act = classData.classes.find(c => c.id === classData.activeId) || classData.classes[0];
+          if (act) {
+            activeClass = act.id || classData.activeId || 'default';
+            if (Array.isArray(act.roster) && act.roster.length > 0) roster = act.roster;
+          }
+        }
+      } catch(e){}
+      if (!roster) {
+        const saved = JSON.parse(localStorage.getItem('puti_student_roster') || 'null');
+        if (Array.isArray(saved) && saved.length > 0) roster = saved;
+        else roster = Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
+      }
+      return { activeClass, roster };
+    };
 
+    let { activeClass, roster } = getActiveData();
     const todayStr = new Date().toISOString().split('T')[0];
     let currentDate = localStorage.getItem('puti_active_att_date') || todayStr;
 
@@ -4775,7 +4790,6 @@ const ClassroomWidgets = {
     const ensureData = () => {
       roster.forEach(name => {
         if (!attendanceData[name]) attendanceData[name] = { status: 'present', note: '' };
-        // 若舊資料含有 absent，自動遷移為 other
         if (attendanceData[name].status === 'absent') attendanceData[name].status = 'other';
       });
     };
@@ -4784,42 +4798,40 @@ const ClassroomWidgets = {
     const saveAttendance = () => {
       localStorage.setItem(getStorageKey(currentDate), JSON.stringify(attendanceData));
       localStorage.setItem('puti_active_att_date', currentDate);
-
-      // 維護歷史日期索引
-      let datesList = JSON.parse(localStorage.getItem(getDatesIndexKey()) || '[]');
-      if (!datesList.includes(currentDate)) {
-        datesList.push(currentDate);
-        datesList.sort((a, b) => b.localeCompare(a));
-        localStorage.setItem(getDatesIndexKey(), JSON.stringify(datesList));
+      let dates = JSON.parse(localStorage.getItem(getDatesIndexKey()) || '[]');
+      if (!dates.includes(currentDate)) {
+        dates.push(currentDate);
+        dates.sort((a, b) => b.localeCompare(a));
+        localStorage.setItem(getDatesIndexKey(), JSON.stringify(dates));
       }
     };
 
     const content = `
-      <div class="attendance-container" style="display: flex; flex-direction: column; height: 100%; gap: 8px; user-select: none; position: relative;">
-        <!-- Top Main Toolbar -->
+      <div class="attendance-container" style="display: flex; flex-direction: column; height: 100%; gap: 8px; user-select: none;">
+        <!-- Top Toolbar -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #E2E8F0; gap: 6px; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <input type="date" id="att-date-picker" value="${currentDate}"
-              style="padding: 3px 8px; border-radius: 8px; border: 1.5px solid #CBD5E1; font-weight: 800; color: #334155; font-size: 0.85rem; outline: none; background: #FFF; cursor: pointer;">
-            <button type="button" class="action-btn-main" id="att-all-present-btn" style="height: 28px; padding: 0 10px; font-size: 0.78rem; background: #059669;" title="一鍵將今日全班設為出席">
-              <i class="fa-solid fa-check-double"></i> 全員出席
+              style="padding: 2px 6px; border-radius: 6px; border: 1.5px solid #CBD5E1; font-weight: 800; color: #334155; font-size: 0.82rem; outline: none; background: #FFF; cursor: pointer;">
+            <button type="button" class="action-btn-main" id="att-all-present-btn" style="height: 28px; padding: 0 10px; font-size: 0.76rem; background: linear-gradient(135deg, #10B981, #059669);" title="將全班一鍵重設為出席">
+              <i class="fa-solid fa-check-double"></i> 全員到齊
             </button>
           </div>
-          <div style="display: flex; gap: 5px; flex-wrap: wrap; align-items: center;">
-            <button type="button" class="action-btn-secondary" id="att-history-btn" style="height: 28px; padding: 0 8px; font-size: 0.78rem; color: #4338CA; border-color: #C7D2FE;" title="查看與查詢歷史出勤紀錄與統計">
+          <div style="display: flex; gap: 5px; align-items: center;">
+            <button type="button" class="action-btn-secondary" id="att-history-btn" style="height: 28px; padding: 0 8px; font-size: 0.78rem;" title="查詢歷史點名紀錄">
               <i class="fa-solid fa-clock-rotate-left"></i> 歷史紀錄
             </button>
-            <button type="button" class="action-btn-secondary" id="att-copy-line-btn" style="height: 28px; padding: 0 8px; font-size: 0.78rem; color: #0284C7; border-color: #BAE6FD;" title="複製出勤通報（含請假備註），可直接貼至 LINE 班級群">
-              <i class="fa-brands fa-line" style="color: #06C755; font-size: 0.95rem;"></i> LINE 通報
-            </button>
-            <button type="button" class="action-btn-secondary" id="att-export-btn" style="height: 28px; padding: 0 8px; font-size: 0.78rem;" title="匯出 Excel/CSV 表格或 JSON 備份檔">
+            <button type="button" class="action-btn-secondary" id="att-export-btn" style="height: 28px; padding: 0 8px; font-size: 0.78rem;" title="匯出當前出勤 CSV 與全班出勤 JSON 備份">
               <i class="fa-solid fa-file-export"></i> 匯出
             </button>
-            <button type="button" class="action-btn-secondary" id="att-import-btn" style="height: 28px; padding: 0 8px; font-size: 0.78rem;" title="匯入歷史出勤備份檔 (JSON)">
+            <button type="button" class="action-btn-secondary" id="att-import-btn" style="height: 28px; padding: 0 8px; font-size: 0.78rem;" title="匯入點名簿 JSON 歷史備份檔">
               <i class="fa-solid fa-file-import"></i> 匯入
             </button>
-            <button type="button" class="action-btn-secondary" id="att-roster-btn" style="height: 28px; padding: 0 8px; font-size: 0.78rem;" title="查看與編輯學生名冊">
-              <i class="fa-solid fa-users"></i> 名冊
+            <button type="button" class="action-btn-secondary" id="att-copy-line-btn" style="height: 28px; padding: 0 8px; font-size: 0.78rem; background: #F0FDF4; border-color: #86EFAC; color: #166534; font-weight: 800;" title="產生出勤日報並複製到剪貼簿（可直接貼入 LINE 家長群或導師通報）">
+              <i class="fa-brands fa-line" style="color: #00B900;"></i> LINE 通報
+            </button>
+            <button type="button" class="action-btn-secondary" id="att-roster-btn" style="height: 28px; padding: 0 8px; font-size: 0.78rem;" title="查看與編輯學生名冊（與作業收發通同步）">
+              <i class="fa-solid fa-users"></i> 名冊 (${roster.length})
             </button>
             <input type="file" id="att-file-input" accept=".json" style="display: none;">
           </div>
@@ -4828,7 +4840,7 @@ const ClassroomWidgets = {
         <!-- Quick Summary Counters (All 8 Statuses) -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: #FFF7ED; padding: 5px 8px; border-radius: 10px; border: 1px solid #FFEDD5; font-size: 0.76rem; font-weight: 800; overflow-x: auto; gap: 4px;">
           <span style="color: #475569;" id="att-stat-total">應到: 0</span>
-          <span style="color: #166534;" id="att-stat-present">實到: 0</span>
+          <span style="color: #166534;" id="att-stat-present">出席: 0</span>
           <span style="color: #1E40AF;" id="att-stat-sick">病假: 0</span>
           <span style="color: #9A3412;" id="att-stat-personal">事假: 0</span>
           <span style="color: #6B21A8;" id="att-stat-official">公假: 0</span>
@@ -4844,33 +4856,14 @@ const ClassroomWidgets = {
 
         <!-- Bottom Guidance -->
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: #64748B; background: #F8FAFC; padding: 3px 8px; border-radius: 8px;">
-          <span>💡 點擊卡片循環切換假別（出席➔病假➔事假➔公假➔喪假➔遲到➔早退➔其他）；點擊右側 📝 或按右鍵可填寫/修改備註。</span>
+          <span>💡 點擊卡片循環切換假別（出席➔病假➔事假➔公假➔喪假➔遲到➔早退➔其他）；點擊右側 📝 可填寫/修改備註。</span>
           <span>📅 支援拖曳右下角無損等比放大字級與卡片</span>
-        </div>
-
-        <!-- History Modal Overlay -->
-        <div id="att-history-modal" style="display: none; position: absolute; inset: 0; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(4px); z-index: 50; border-radius: 12px; padding: 12px; box-sizing: border-box; flex-direction: column;">
-          <div style="background: #FFF; border-radius: 14px; display: flex; flex-direction: column; height: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.2); overflow: hidden;">
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1.5px solid #E2E8F0; background: #F8FAFC;">
-              <div style="font-weight: 900; font-size: 0.95rem; color: #334155; display: flex; align-items: center; gap: 6px;">
-                <i class="fa-solid fa-clock-rotate-left" style="color: #4F46E5;"></i> 出勤歷史紀錄與學期查詢
-              </div>
-              <button type="button" class="win-btn btn-close" id="att-history-close" style="width: 26px; height: 26px;"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <!-- History Tabs -->
-            <div style="display: flex; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #E2E8F0; background: #FFF;">
-              <button type="button" class="scale-btn active" id="att-tab-dates" style="font-size: 0.78rem; font-weight: 800; padding: 3px 10px; border-radius: 8px;">📅 每日出勤歷程</button>
-              <button type="button" class="scale-btn" id="att-tab-students" style="font-size: 0.78rem; font-weight: 800; padding: 3px 10px; border-radius: 8px;">📊 學生請假累計表</button>
-            </div>
-            <!-- History Content Box -->
-            <div id="att-history-content" style="flex: 1; overflow-y: auto; padding: 12px;">
-            </div>
-          </div>
         </div>
       </div>
     `;
 
     let resizeObserver = null;
+    let onRosterUpdated = null;
 
     wm.createWindow({
       title: '課堂點名簿',
@@ -4880,21 +4873,15 @@ const ClassroomWidgets = {
       type: 'attendance',
       contentHtml: content,
       onInit: (el) => {
-        const grid = el.querySelector('#att-grid-container');
         const datePicker = el.querySelector('#att-date-picker');
+        const grid = el.querySelector('#att-grid-container');
         const allPresentBtn = el.querySelector('#att-all-present-btn');
-        const copyBtn = el.querySelector('#att-copy-line-btn');
+        const copyLineBtn = el.querySelector('#att-copy-line-btn');
         const rosterBtn = el.querySelector('#att-roster-btn');
         const historyBtn = el.querySelector('#att-history-btn');
         const exportBtn = el.querySelector('#att-export-btn');
         const importBtn = el.querySelector('#att-import-btn');
         const fileInput = el.querySelector('#att-file-input');
-
-        const historyModal = el.querySelector('#att-history-modal');
-        const historyClose = el.querySelector('#att-history-close');
-        const historyContent = el.querySelector('#att-history-content');
-        const tabDatesBtn = el.querySelector('#att-tab-dates');
-        const tabStudentsBtn = el.querySelector('#att-tab-students');
 
         const statTotal = el.querySelector('#att-stat-total');
         const statPresent = el.querySelector('#att-stat-present');
@@ -4907,71 +4894,81 @@ const ClassroomWidgets = {
         const statOther = el.querySelector('#att-stat-other');
 
         // Dynamic Resize Scaling
-        const updateAttScale = () => {
+        const updateAttendanceScale = () => {
           const width = el.offsetWidth;
           const height = el.offsetHeight;
           const scale = Math.max(0.8, Math.min(2.5, Math.min(width / 560, height / 480)));
           const nameFontSize = (0.86 * scale).toFixed(2) + 'rem';
           const badgeFontSize = (0.72 * scale).toFixed(2) + 'rem';
           const noteFontSize = (0.68 * scale).toFixed(2) + 'rem';
-          const cardMinH = Math.round(58 * scale) + 'px';
-          const cardPadding = Math.round(6 * scale) + 'px ' + Math.round(4 * scale) + 'px';
+          const cardMinH = Math.round(54 * scale) + 'px';
           const gapSize = Math.round(6 * scale) + 'px';
 
           grid.style.gap = gapSize;
-          grid.querySelectorAll('.att-card-item').forEach(c => {
+          grid.querySelectorAll('.att-student-card').forEach(c => {
             c.style.minHeight = cardMinH;
-            c.style.padding = cardPadding;
             const nameEl = c.querySelector('.att-student-name');
             if (nameEl) nameEl.style.fontSize = nameFontSize;
             const badgeEl = c.querySelector('.att-status-badge');
             if (badgeEl) badgeEl.style.fontSize = badgeFontSize;
-            const noteEl = c.querySelector('.att-note-bubble');
+            const noteEl = c.querySelector('.att-note-text');
             if (noteEl) noteEl.style.fontSize = noteFontSize;
           });
         };
 
-        resizeObserver = new ResizeObserver(() => updateAttScale());
+        resizeObserver = new ResizeObserver(() => updateAttendanceScale());
         resizeObserver.observe(el);
 
-        const editNoteForStudent = (name) => {
-          const curNote = (attendanceData[name] && attendanceData[name].note) || '';
-          const newNote = prompt(`請輸入【${name}】${currentDate} 出勤備註（例如：發燒就醫、看牙早退、比賽公假等）：`, curNote);
-          if (newNote !== null) {
-            if (!attendanceData[name]) attendanceData[name] = { status: 'present', note: '' };
-            attendanceData[name].note = newNote.trim();
-            saveAttendance();
-            if (window.soundEngine && typeof window.soundEngine.playPop === 'function') {
-              window.soundEngine.playPop();
-            }
-            render();
+        const updateStats = () => {
+          const counts = { present: 0, sick: 0, personal: 0, official: 0, bereavement: 0, late: 0, early: 0, other: 0 };
+          roster.forEach(name => {
+            const st = (attendanceData[name] && attendanceData[name].status) || 'present';
+            if (counts[st] !== undefined) counts[st]++;
+            else counts.other++;
+          });
+
+          statTotal.textContent = `應到: ${roster.length}`;
+          statPresent.textContent = `出席: ${counts.present}`;
+          statSick.textContent = `病假: ${counts.sick}`;
+          statPersonal.textContent = `事假: ${counts.personal}`;
+          statOfficial.textContent = `公假: ${counts.official}`;
+          statBereavement.textContent = `喪假: ${counts.bereavement}`;
+          statLate.textContent = `遲到: ${counts.late}`;
+          statEarly.textContent = `早退: ${counts.early}`;
+          statOther.textContent = `其他: ${counts.other}`;
+
+          if (rosterBtn) {
+            rosterBtn.innerHTML = `<i class="fa-solid fa-users"></i> 名冊 (${roster.length})`;
           }
         };
 
         const render = () => {
           ensureData();
-          let countMap = { present: 0, sick: 0, personal: 0, official: 0, bereavement: 0, late: 0, early: 0, other: 0 };
-
           grid.innerHTML = roster.map((name) => {
             const item = attendanceData[name] || { status: 'present', note: '' };
-            const conf = statusMap[item.status] || statusMap.present;
-            if (countMap[item.status] !== undefined) countMap[item.status]++;
-
-            const hasNote = Boolean(item.note && item.note.trim());
+            const cfg = statusMap[item.status] || statusMap.present;
+            const hasNote = !!item.note;
 
             return `
-              <div class="att-card-item" data-name="${name}" style="background: ${conf.bg}; border: 1.5px solid ${conf.border}; border-radius: 12px; padding: 6px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; gap: 3px; min-height: 58px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-                <!-- Edit Note Button Top-Right -->
-                <button type="button" class="att-note-icon-btn" data-name="${name}" title="填寫/修改出勤備註"
-                  style="position: absolute; top: 3px; right: 4px; background: transparent; border: none; font-size: 0.7rem; color: ${hasNote ? '#D97706' : '#94A3B8'}; cursor: pointer; padding: 2px;">
-                  <i class="${hasNote ? 'fa-solid fa-note-sticky' : 'fa-regular fa-pen-to-square'}"></i>
-                </button>
+              <div class="att-student-card" data-name="${name}"
+                style="background: ${cfg.bg}; border: 1.5px solid ${cfg.border}; border-radius: 12px; padding: 6px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; position: relative; min-height: 54px; box-sizing: border-box;">
+                
+                <div class="att-student-name" style="font-size: 0.86rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%;">
+                  ${name}
+                </div>
 
-                <div class="att-student-name" style="font-size: 0.86rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 82%;">${name}</div>
-                <span class="att-status-badge" style="font-size: 0.72rem; font-weight: 900; background: ${conf.color}; color: #FFF; padding: 2px 9px; border-radius: 999px; line-height: 1.2;">${conf.label}</span>
+                <div style="display: flex; align-items: center; gap: 4px; justify-content: center;">
+                  <span class="att-status-badge" style="font-size: 0.72rem; font-weight: 900; background: ${cfg.color}; color: #FFF; padding: 2px 7px; border-radius: 999px; display: inline-flex; align-items: center; gap: 3px; line-height: 1.2;">
+                    <i class="fa-solid ${cfg.icon}" style="font-size: 0.65rem;"></i> ${cfg.label}
+                  </span>
+                  <button type="button" class="att-note-btn" data-name="${name}" title="點擊編輯註記"
+                    style="border: none; background: ${hasNote ? '#FEF08A' : 'rgba(0,0,0,0.06)'}; color: ${hasNote ? '#854D0E' : '#64748B'}; border-radius: 6px; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.68rem; cursor: pointer; padding: 0;">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                  </button>
+                </div>
 
                 ${hasNote ? `
-                  <div class="att-note-bubble" data-name="${name}" title="備註：${item.note}" style="font-size: 0.68rem; font-weight: 700; color: #92400E; background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 6px; padding: 1px 6px; max-width: 92%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px;">
+                  <div class="att-note-text" style="font-size: 0.68rem; color: #475569; background: rgba(255,255,255,0.7); border-radius: 4px; padding: 1px 4px; max-width: 95%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; margin-top: 1px;" title="${item.note}">
                     📝 ${item.note}
                   </div>
                 ` : ''}
@@ -4979,325 +4976,169 @@ const ClassroomWidgets = {
             `;
           }).join('');
 
-          statTotal.textContent = `應到: ${roster.length}`;
-          statPresent.textContent = `實到: ${countMap.present}`;
-          statSick.textContent = `病假: ${countMap.sick}`;
-          statPersonal.textContent = `事假: ${countMap.personal}`;
-          statOfficial.textContent = `公假: ${countMap.official}`;
-          statBereavement.textContent = `喪假: ${countMap.bereavement}`;
-          statLate.textContent = `遲到: ${countMap.late}`;
-          statEarly.textContent = `早退: ${countMap.early}`;
-          statOther.textContent = `其他: ${countMap.other}`;
-
-          // Card Click Event (Cycle status)
-          grid.querySelectorAll('.att-card-item').forEach(card => {
+          // 綁定卡片點擊循環切換假別
+          grid.querySelectorAll('.att-student-card').forEach(card => {
             card.addEventListener('click', (e) => {
-              if (e.target.closest('.att-note-icon-btn') || e.target.closest('.att-note-bubble')) return;
+              if (e.target.closest('.att-note-btn')) return;
               const name = card.getAttribute('data-name');
-              const cur = attendanceData[name] ? attendanceData[name].status : 'present';
-              const next = statusMap[cur] ? statusMap[cur].next : 'present';
-              attendanceData[name].status = next;
+              const item = attendanceData[name] || { status: 'present', note: '' };
+              const currentCfg = statusMap[item.status] || statusMap.present;
+              item.status = currentCfg.next;
+              attendanceData[name] = item;
               if (window.soundEngine && typeof window.soundEngine.playTick === 'function') {
                 window.soundEngine.playTick();
               }
               saveAttendance();
               render();
             });
-
-            // Right Click to edit note directly
-            card.addEventListener('contextmenu', (e) => {
-              e.preventDefault();
-              const name = card.getAttribute('data-name');
-              editNoteForStudent(name);
-            });
           });
 
-          // Note Icon Buttons
-          grid.querySelectorAll('.att-note-icon-btn, .att-note-bubble').forEach(btn => {
+          // 綁定註記按鈕
+          grid.querySelectorAll('.att-note-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
               e.stopPropagation();
               const name = btn.getAttribute('data-name');
-              editNoteForStudent(name);
-            });
-          });
-
-          updateAttScale();
-        };
-
-        datePicker.addEventListener('change', (e) => {
-          currentDate = e.target.value;
-          attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
-          saveAttendance();
-          render();
-        });
-
-        allPresentBtn.addEventListener('click', () => {
-          roster.forEach(name => {
-            if (!attendanceData[name]) attendanceData[name] = { status: 'present', note: '' };
-            attendanceData[name].status = 'present';
-          });
-          if (window.soundEngine) {
-            if (typeof window.soundEngine.playCoin === 'function') window.soundEngine.playCoin();
-            else if (typeof window.soundEngine.playChime === 'function') window.soundEngine.playChime();
-          }
-          saveAttendance();
-          render();
-        });
-
-        // LINE 通報複製
-        copyBtn.addEventListener('click', () => {
-          let catMap = { sick: [], personal: [], official: [], bereavement: [], late: [], early: [], other: [] };
-          let presentCount = 0;
-
-          roster.forEach(name => {
-            const item = attendanceData[name] || { status: 'present', note: '' };
-            const noteText = item.note ? ` (${item.note})` : '';
-            if (item.status === 'present') presentCount++;
-            else if (catMap[item.status]) catMap[item.status].push(`${name}${noteText}`);
-          });
-
-          let text = `【今日課堂出勤通報】${currentDate}\n`;
-          text += `應到：${roster.length} 人 / 實到：${presentCount} 人\n`;
-          if (catMap.sick.length > 0) text += `🏥 病假 (${catMap.sick.length})：${catMap.sick.join('、')}\n`;
-          if (catMap.personal.length > 0) text += `📋 事假 (${catMap.personal.length})：${catMap.personal.join('、')}\n`;
-          if (catMap.official.length > 0) text += `🎖️ 公假 (${catMap.official.length})：${catMap.official.join('、')}\n`;
-          if (catMap.bereavement.length > 0) text += `🕊️ 喪假 (${catMap.bereavement.length})：${catMap.bereavement.join('、')}\n`;
-          if (catMap.late.length > 0) text += `⏰ 遲到 (${catMap.late.length})：${catMap.late.join('、')}\n`;
-          if (catMap.early.length > 0) text += `🏃 早退 (${catMap.early.length})：${catMap.early.join('、')}\n`;
-          if (catMap.other.length > 0) text += `📌 其他 (${catMap.other.length})：${catMap.other.join('、')}\n`;
-
-          const totalAbsent = roster.length - presentCount;
-          if (totalAbsent === 0) {
-            text += `✨ 全班到齊，表現優良！\n`;
-          }
-
-          navigator.clipboard.writeText(text).then(() => {
-            alert('📋 今日出勤通報（含請假備註）已複製至剪貼簿，可直接貼至 LINE！\n\n' + text);
-          }).catch(() => {
-            prompt('請手動複製出勤通報：', text);
-          });
-        });
-
-        // 歷史紀錄視窗渲染
-        let activeHistoryTab = 'dates';
-
-        const renderHistoryDates = () => {
-          let datesList = JSON.parse(localStorage.getItem(getDatesIndexKey()) || '[]');
-          if (datesList.length === 0) {
-            historyContent.innerHTML = '<div style="text-align: center; color: #94A3B8; padding: 40px;">尚無歷史出勤紀錄，今日完成點名後將自動保存。</div>';
-            return;
-          }
-
-          historyContent.innerHTML = `
-            <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem; text-align: left;">
-              <thead>
-                <tr style="background: #F1F5F9; color: #475569; font-weight: 800; border-bottom: 2px solid #CBD5E1;">
-                  <th style="padding: 8px 10px;">日期</th>
-                  <th style="padding: 8px 6px;">出席 / 應到</th>
-                  <th style="padding: 8px 10px;">未出席名單與備註</th>
-                  <th style="padding: 8px 10px; text-align: right;">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${datesList.map(d => {
-                  const dayData = JSON.parse(localStorage.getItem(getStorageKey(d)) || '{}');
-                  let present = 0;
-                  let absList = [];
-                  roster.forEach(n => {
-                    const it = dayData[n] || { status: 'present', note: '' };
-                    if (it.status === 'present') present++;
-                    else {
-                      const label = statusMap[it.status] ? statusMap[it.status].label : '請假';
-                      const nStr = it.note ? ` (${it.note})` : '';
-                      absList.push(`${n} [${label}${nStr}]`);
-                    }
-                  });
-                  const isCurrent = d === currentDate;
-
-                  return `
-                    <tr style="border-bottom: 1px solid #E2E8F0; ${isCurrent ? 'background: #F0FDF4;' : ''}">
-                      <td style="padding: 8px 10px; font-weight: 800; color: #334155;">${d} ${isCurrent ? '<span style="color: #16A34A; font-size: 0.72rem;">(當前)</span>' : ''}</td>
-                      <td style="padding: 8px 6px; font-weight: 800; color: ${present === roster.length ? '#16A34A' : '#D97706'};">${present} / ${roster.length}</td>
-                      <td style="padding: 8px 10px; color: #475569; font-size: 0.78rem;">${absList.length > 0 ? absList.join('、') : '<span style="color: #16A34A;">全勤</span>'}</td>
-                      <td style="padding: 8px 10px; text-align: right;">
-                        <button type="button" class="action-btn-secondary att-switch-date-btn" data-date="${d}" style="height: 24px; font-size: 0.72rem; padding: 0 8px;">
-                          載入該日
-                        </button>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-          `;
-
-          historyContent.querySelectorAll('.att-switch-date-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-              const targetDate = btn.getAttribute('data-date');
-              currentDate = targetDate;
-              datePicker.value = currentDate;
-              attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
-              saveAttendance();
-              render();
-              historyModal.style.display = 'none';
-            });
-          });
-        };
-
-        const renderHistoryStudents = () => {
-          let datesList = JSON.parse(localStorage.getItem(getDatesIndexKey()) || '[]');
-          if (datesList.length === 0) {
-            historyContent.innerHTML = '<div style="text-align: center; color: #94A3B8; padding: 40px;">尚無歷史出勤紀錄。</div>';
-            return;
-          }
-
-          // Aggregate per student stats
-          const studentStats = {};
-          roster.forEach(n => {
-            studentStats[n] = { sick: 0, personal: 0, official: 0, bereavement: 0, late: 0, early: 0, other: 0, notes: [] };
-          });
-
-          datesList.forEach(d => {
-            const dayData = JSON.parse(localStorage.getItem(getStorageKey(d)) || '{}');
-            roster.forEach(n => {
-              const it = dayData[n];
-              if (it && it.status !== 'present') {
-                if (studentStats[n][it.status] !== undefined) studentStats[n][it.status]++;
-                if (it.note) {
-                  studentStats[n].notes.push(`${d} ${statusMap[it.status].label}: ${it.note}`);
-                }
+              const item = attendanceData[name] || { status: 'present', note: '' };
+              const currentNote = item.note || '';
+              const newNote = prompt(`請輸入【${name}】的註記備忘（例：看牙醫、高燒請假、預計第二節到）：`, currentNote);
+              if (newNote !== null) {
+                item.note = newNote.trim();
+                attendanceData[name] = item;
+                saveAttendance();
+                render();
               }
             });
           });
 
-          historyContent.innerHTML = `
-            <div style="margin-bottom: 8px; font-size: 0.78rem; color: #64748B;">
-              統計自 ${datesList[datesList.length - 1]} 至 ${datesList[0]}，共 ${datesList.length} 個紀錄日
-            </div>
-            <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">
-              <thead>
-                <tr style="background: #F1F5F9; color: #475569; font-weight: 800; border-bottom: 2px solid #CBD5E1;">
-                  <th style="padding: 6px; text-align: left;">座號 / 姓名</th>
-                  <th style="padding: 6px; color: #1E40AF;">病假</th>
-                  <th style="padding: 6px; color: #9A3412;">事假</th>
-                  <th style="padding: 6px; color: #6B21A8;">公假</th>
-                  <th style="padding: 6px; color: #334155;">喪假</th>
-                  <th style="padding: 6px; color: #854D0E;">遲到</th>
-                  <th style="padding: 6px; color: #B91C1C;">早退</th>
-                  <th style="padding: 6px; color: #475569;">其他</th>
-                  <th style="padding: 6px; text-align: left;">備註總覽</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${roster.map(n => {
-                  const s = studentStats[n];
-                  const totalAbs = s.sick + s.personal + s.official + s.bereavement + s.late + s.early + s.other;
-                  return `
-                    <tr style="border-bottom: 1px solid #E2E8F0; ${totalAbs > 0 ? 'background: #FFFDF7;' : ''}">
-                      <td style="padding: 6px; text-align: left; font-weight: 800; color: #334155;">${n}</td>
-                      <td style="padding: 6px; font-weight: ${s.sick > 0 ? '800' : 'normal'}; color: ${s.sick > 0 ? '#1E40AF' : '#94A3B8'};">${s.sick}</td>
-                      <td style="padding: 6px; font-weight: ${s.personal > 0 ? '800' : 'normal'}; color: ${s.personal > 0 ? '#9A3412' : '#94A3B8'};">${s.personal}</td>
-                      <td style="padding: 6px; font-weight: ${s.official > 0 ? '800' : 'normal'}; color: ${s.official > 0 ? '#6B21A8' : '#94A3B8'};">${s.official}</td>
-                      <td style="padding: 6px; font-weight: ${s.bereavement > 0 ? '800' : 'normal'}; color: ${s.bereavement > 0 ? '#334155' : '#94A3B8'};">${s.bereavement}</td>
-                      <td style="padding: 6px; font-weight: ${s.late > 0 ? '800' : 'normal'}; color: ${s.late > 0 ? '#854D0E' : '#94A3B8'};">${s.late}</td>
-                      <td style="padding: 6px; font-weight: ${s.early > 0 ? '800' : 'normal'}; color: ${s.early > 0 ? '#B91C1C' : '#94A3B8'};">${s.early}</td>
-                      <td style="padding: 6px; font-weight: ${s.other > 0 ? '800' : 'normal'}; color: ${s.other > 0 ? '#475569' : '#94A3B8'};">${s.other}</td>
-                      <td style="padding: 6px; text-align: left; font-size: 0.74rem; color: #64748B;">${s.notes.length > 0 ? s.notes.join('； ') : '-'}</td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-          `;
+          updateStats();
+          updateAttendanceScale();
         };
 
+        // 全員到齊
+        allPresentBtn.addEventListener('click', () => {
+          roster.forEach(name => {
+            attendanceData[name] = { status: 'present', note: '' };
+          });
+          if (window.soundEngine) {
+            if (typeof window.soundEngine.playFanfare === 'function') window.soundEngine.playFanfare();
+            else if (typeof window.soundEngine.playBell === 'function') window.soundEngine.playBell();
+          }
+          saveAttendance();
+          render();
+        });
+
+        // 日期變更
+        datePicker.addEventListener('change', (e) => {
+          currentDate = e.target.value;
+          attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
+          ensureData();
+          saveAttendance();
+          render();
+        });
+
+        // LINE 通報
+        copyLineBtn.addEventListener('click', () => {
+          const counts = { present: 0, sick: 0, personal: 0, official: 0, bereavement: 0, late: 0, early: 0, other: 0 };
+          const abnormal = [];
+
+          roster.forEach(name => {
+            const it = attendanceData[name] || { status: 'present', note: '' };
+            if (counts[it.status] !== undefined) counts[it.status]++;
+            else counts.other++;
+
+            if (it.status !== 'present') {
+              const label = statusMap[it.status] ? statusMap[it.status].label : '其他';
+              const note = it.note ? `（${it.note}）` : '';
+              abnormal.push(`• ${name}：${label}${note}`);
+            }
+          });
+
+          let text = `【課堂出勤通報】${currentDate}\n`;
+          text += `應到：${roster.length} 人 / 實到：${counts.present} 人\n`;
+          text += `假別統計：病假 ${counts.sick} | 事假 ${counts.personal} | 公假 ${counts.official} | 喪假 ${counts.bereavement} | 遲到 ${counts.late} | 早退 ${counts.early} | 其他 ${counts.other}\n`;
+
+          if (abnormal.length > 0) {
+            text += `\n📋 未出席名單與事由：\n` + abnormal.join('\n');
+          } else {
+            text += `\n✨ 今日全員全勤到齊，表現優良！`;
+          }
+
+          navigator.clipboard.writeText(text).then(() => {
+            alert('📋 出勤日報已複製至剪貼簿！可直接貼至 LINE 家長群或導師通報。\n\n' + text);
+          }).catch(() => {
+            prompt('請手動複製出勤通報內容：', text);
+          });
+        });
+
+        // 歷史紀錄查詢彈窗
         historyBtn.addEventListener('click', () => {
-          historyModal.style.display = 'flex';
-          activeHistoryTab = 'dates';
-          tabDatesBtn.classList.add('active');
-          tabStudentsBtn.classList.remove('active');
-          renderHistoryDates();
-          if (window.soundEngine && typeof window.soundEngine.playPop === 'function') {
-            window.soundEngine.playPop();
+          const dates = JSON.parse(localStorage.getItem(getDatesIndexKey()) || '[]');
+          if (dates.length === 0) {
+            alert('目前尚無儲存的歷史點名紀錄喔！');
+            return;
+          }
+
+          let summaryList = dates.map(d => {
+            const rec = JSON.parse(localStorage.getItem(getStorageKey(d)) || '{}');
+            let abs = 0;
+            Object.values(rec).forEach(v => {
+              if (v && v.status && v.status !== 'present') abs++;
+            });
+            return `• ${d}（未到 ${abs} 人）`;
+          }).slice(0, 15).join('\n');
+
+          const chosen = prompt(`請輸入欲調閱的歷史日期 (YYYY-MM-DD)：\n\n最近點名紀錄：\n${summaryList}`, dates[0]);
+          if (chosen && chosen.trim()) {
+            const clean = chosen.trim();
+            datePicker.value = clean;
+            currentDate = clean;
+            attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
+            ensureData();
+            saveAttendance();
+            render();
           }
         });
 
-        historyClose.addEventListener('click', () => {
-          historyModal.style.display = 'none';
-        });
-
-        tabDatesBtn.addEventListener('click', () => {
-          activeHistoryTab = 'dates';
-          tabDatesBtn.classList.add('active');
-          tabStudentsBtn.classList.remove('active');
-          renderHistoryDates();
-        });
-
-        tabStudentsBtn.addEventListener('click', () => {
-          activeHistoryTab = 'students';
-          tabStudentsBtn.classList.add('active');
-          tabDatesBtn.classList.remove('active');
-          renderHistoryStudents();
-        });
-
-        // 匯出功能（支援 CSV 試算表與 JSON 完整備份）
+        // 匯出功能
         exportBtn.addEventListener('click', () => {
-          const mode = prompt('請選擇匯出格式：\n輸入 1：匯出 Excel/CSV 表格（含全學期出勤流水帳與備註）\n輸入 2：匯出 JSON 完整資料備份檔', '1');
-          if (!mode) return;
-
-          let datesList = JSON.parse(localStorage.getItem(getDatesIndexKey()) || '[]');
-          if (datesList.length === 0) datesList = [currentDate];
-
-          if (mode.trim() === '1') {
-            // CSV Export with UTF-8 BOM
-            let csv = '\uFEFF日期,班級,座號/姓名,出勤狀態,備註說明\n';
-            datesList.forEach(d => {
-              const dayData = JSON.parse(localStorage.getItem(getStorageKey(d)) || '{}');
-              roster.forEach(n => {
-                const it = dayData[n] || { status: 'present', note: '' };
-                const label = statusMap[it.status] ? statusMap[it.status].label : '出席';
-                const noteClean = (it.note || '').replace(/"/g, '""');
-                csv += `"${d}","${activeClass}","${n}","${label}","${noteClean}"\n`;
-              });
+          const choice = confirm('點擊【確定】匯出當前出勤 CSV 報表；\n點擊【取消】匯出全班出勤歷史完整 JSON 備份檔。');
+          if (choice) {
+            let csv = '\uFEFF座號/姓名,出勤狀態,事由備註,登記日期\n';
+            roster.forEach(name => {
+              const it = attendanceData[name] || { status: 'present', note: '' };
+              const label = statusMap[it.status] ? statusMap[it.status].label : '其他';
+              csv += `"${name}","${label}","${(it.note || '').replace(/"/g, '""')}","${currentDate}"\n`;
             });
-
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `點名簿出勤紀錄_${activeClass}_${todayStr}.csv`;
+            a.download = `點名簿出勤紀錄_${activeClass}_${currentDate}.csv`;
             a.click();
             URL.revokeObjectURL(url);
-            if (window.soundEngine && typeof window.soundEngine.playFanfare === 'function') {
-              window.soundEngine.playFanfare();
-            }
-          } else if (mode.trim() === '2') {
-            // JSON Backup Export
-            const backup = {
-              version: '2.0',
-              activeClass,
-              exportTime: new Date().toISOString(),
-              dates: datesList,
-              records: {}
-            };
-            datesList.forEach(d => {
-              backup.records[d] = JSON.parse(localStorage.getItem(getStorageKey(d)) || '{}');
+          } else {
+            const dates = JSON.parse(localStorage.getItem(getDatesIndexKey()) || '[]');
+            const allRecs = {};
+            dates.forEach(d => {
+              allRecs[d] = JSON.parse(localStorage.getItem(getStorageKey(d)) || '{}');
             });
-
-            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const exportData = {
+              version: '2.0',
+              classId: activeClass,
+              exportAt: new Date().toISOString(),
+              records: allRecs
+            };
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             a.download = `點名簿出勤備份_${activeClass}_${todayStr}.json`;
             a.click();
             URL.revokeObjectURL(url);
-            if (window.soundEngine && typeof window.soundEngine.playFanfare === 'function') {
-              window.soundEngine.playFanfare();
-            }
           }
         });
 
-        // 匯入功能 (JSON Restore)
+        // 匯入功能
         importBtn.addEventListener('click', () => {
           fileInput.value = '';
           fileInput.click();
@@ -5306,7 +5147,6 @@ const ClassroomWidgets = {
         fileInput.addEventListener('change', (e) => {
           const file = e.target.files[0];
           if (!file) return;
-
           const reader = new FileReader();
           reader.onload = (event) => {
             try {
@@ -5341,43 +5181,61 @@ const ClassroomWidgets = {
           reader.readAsText(file);
         });
 
+        // 打開名冊編輯器
         rosterBtn.addEventListener('click', () => {
-          const globalBtn = document.getElementById('btn-global-roster');
-          if (globalBtn) globalBtn.click();
+          if (typeof window.openRosterEditor === 'function') {
+            window.openRosterEditor();
+          } else {
+            const globalBtn = document.getElementById('btn-global-roster');
+            if (globalBtn) globalBtn.click();
+          }
         });
+
+        // 全域名冊連動更新監聽
+        onRosterUpdated = (e) => {
+          const latest = getActiveData();
+          activeClass = latest.activeClass;
+          roster = latest.roster;
+          attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
+          ensureData();
+          render();
+        };
+        window.addEventListener('rosterUpdated', onRosterUpdated);
 
         render();
       },
       onClose: () => {
         if (resizeObserver) resizeObserver.disconnect();
+        if (onRosterUpdated) window.removeEventListener('rosterUpdated', onRosterUpdated);
       }
     });
   },
 
-    // =========================================================================
-  // 作業收發通 (Homework Check & Collection Manager) - 支援指定日期與聯絡簿連動
+    // 作業收發通 (Homework Check & Collection Manager) - 支援指定日期與聯絡簿連動
   // =========================================================================
   spawnHomeworkCheck(wm, initialOptions = {}) {
-    const getRoster = () => {
+    const getActiveData = () => {
+      let activeClass = 'default';
+      let roster = null;
       try {
         const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
         if (classData && classData.classes) {
           const act = classData.classes.find(c => c.id === classData.activeId) || classData.classes[0];
-          if (act && Array.isArray(act.roster) && act.roster.length > 0) return act.roster;
+          if (act) {
+            activeClass = act.id || classData.activeId || 'default';
+            if (Array.isArray(act.roster) && act.roster.length > 0) roster = act.roster;
+          }
         }
       } catch(e){}
-      const saved = JSON.parse(localStorage.getItem('puti_student_roster') || 'null');
-      if (Array.isArray(saved) && saved.length > 0) return saved;
-      return Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
+      if (!roster) {
+        const saved = JSON.parse(localStorage.getItem('puti_student_roster') || 'null');
+        if (Array.isArray(saved) && saved.length > 0) roster = saved;
+        else roster = Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
+      }
+      return { activeClass, roster };
     };
 
-    let roster = getRoster();
-    let activeClass = 'default';
-    try {
-      const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
-      if (classData && classData.activeId) activeClass = classData.activeId;
-    } catch(e){}
-
+    let { activeClass, roster } = getActiveData();
     const todayStr = new Date().toISOString().split('T')[0];
     let currentDate = initialOptions.date || localStorage.getItem('puti_active_hw_date') || todayStr;
 
@@ -5471,7 +5329,7 @@ const ClassroomWidgets = {
 
     const content = `
       <div class="homework-check-container" style="display: flex; flex-direction: column; height: 100%; gap: 8px; user-select: none;">
-        <!-- Top Toolbar: Date & Contact Link Selection -->
+        <!-- Top Toolbar: Date, Contact Link Selection & Roster Sync -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #E2E8F0; gap: 6px; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <label style="font-size: 0.8rem; font-weight: 800; color: #475569;"><i class="fa-solid fa-calendar-day"></i> 登記日期:</label>
@@ -5482,6 +5340,9 @@ const ClassroomWidgets = {
             </select>
           </div>
           <div style="display: flex; gap: 5px; align-items: center;">
+            <button type="button" class="action-btn-secondary" id="hw-roster-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="查看與編輯學生名冊（與點名簿同步）">
+              <i class="fa-solid fa-users"></i> 名冊 (${roster.length})
+            </button>
             <button type="button" class="action-btn-secondary" id="hw-add-subject-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem; border-style: dashed;" title="自訂新增作業項目">
               <i class="fa-solid fa-plus"></i> 新增項目
             </button>
@@ -5524,7 +5385,7 @@ const ClassroomWidgets = {
 
         <!-- Bottom Guidance -->
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: #64748B; background: #F8FAFC; padding: 3px 8px; border-radius: 8px;">
-          <span>💡 點擊學生卡片切換【已繳 / 未交】；上方切換日期可調閱任一天的聯絡簿作業繳交紀錄。</span>
+          <span>💡 點擊學生卡片切換【已繳 / 未交】；學生名單與【點名簿】全域即時連動同步。</span>
           <span>📦 支援拖曳右下角縮放，卡片等比放大</span>
         </div>
       </div>
@@ -5549,6 +5410,7 @@ const ClassroomWidgets = {
         const delSubBtn = el.querySelector('#hw-del-subject-btn');
         const allCheckBtn = el.querySelector('#hw-all-check-btn');
         const copyMissingBtn = el.querySelector('#hw-copy-missing-btn');
+        const rosterBtn = el.querySelector('#hw-roster-btn');
         const titleSpan = el.querySelector('#hw-stat-subject-title');
         const progressText = el.querySelector('#hw-stat-progress-text');
         const progressBar = el.querySelector('#hw-stat-progress-bar');
@@ -5650,6 +5512,10 @@ const ClassroomWidgets = {
           const rec = hwData.records[sub];
           let doneCount = 0;
 
+          if (rosterBtn) {
+            rosterBtn.innerHTML = `<i class="fa-solid fa-users"></i> 名冊 (${roster.length})`;
+          }
+
           grid.innerHTML = roster.map(name => {
             const isDone = !!rec[name];
             if (isDone) doneCount++;
@@ -5703,6 +5569,18 @@ const ClassroomWidgets = {
             updateContactSelect();
             render();
           };
+        }
+
+        // 打開名冊編輯器
+        if (rosterBtn) {
+          rosterBtn.addEventListener('click', () => {
+            if (typeof window.openRosterEditor === 'function') {
+              window.openRosterEditor();
+            } else {
+              const globalBtn = document.getElementById('btn-global-roster');
+              if (globalBtn) globalBtn.click();
+            }
+          });
         }
 
         // 日期變更
@@ -5803,10 +5681,12 @@ const ClassroomWidgets = {
 
         // 全域名冊連動更新監聽
         onRosterUpdated = (e) => {
-          if (e.detail && Array.isArray(e.detail)) {
-            roster = [...e.detail];
-            render();
-          }
+          const latest = getActiveData();
+          activeClass = latest.activeClass;
+          roster = latest.roster;
+          hwData = loadHwDataForDate(currentDate);
+          updateContactSelect();
+          render();
         };
         window.addEventListener('rosterUpdated', onRosterUpdated);
 
