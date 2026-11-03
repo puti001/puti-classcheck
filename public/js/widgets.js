@@ -188,20 +188,15 @@ const ClassroomWidgets = {
 
       // 預設 3 項作業 + 攜帶物品 1 項
       const defaultItems = [
-        { id: 'item_1', title: '國語作業', content: '國語習作第 42~45 頁' },
-        { id: 'item_2', title: '數學校訂', content: '數學習作第 38 頁、訂正第四單元' },
-        { id: 'item_3', title: '英語專科', content: '英語課本 Unit 3 朗讀 3 遍' },
-        { id: 'item_4', title: '攜帶物品', content: '明天便服日，請帶彩色筆與剪刀、回條' }
+        { id: 'item_1', title: '作業1', content: '' },
+        { id: 'item_2', title: '作業2', content: '' },
+        { id: 'item_3', title: '作業3', content: '' },
+        { id: 'item_4', title: '攜帶物品', content: '' }
       ];
 
       if (!raw) {
         return {
-          items: d === todayStr ? defaultItems : [
-            { id: 'item_1', title: '第一項作業', content: '' },
-            { id: 'item_2', title: '第二項作業', content: '' },
-            { id: 'item_3', title: '第三項作業', content: '' },
-            { id: 'item_4', title: '攜帶物品', content: '' }
-          ],
+          items: defaultItems.map(it => ({ ...it, id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4) })),
           memo: d === todayStr ? '明天請記得準時到校，晨讀時間檢驗作業！' : ''
         };
       }
@@ -209,10 +204,10 @@ const ClassroomWidgets = {
       // 如果是舊版物件（含 chinese, math, etc.），轉換為 items 陣列
       if (!Array.isArray(raw.items)) {
         const converted = [];
-        if (raw.chinese !== undefined) converted.push({ id: 'item_c', title: '國語作業', content: raw.chinese || '' });
-        if (raw.math !== undefined) converted.push({ id: 'item_m', title: '數學校訂', content: raw.math || '' });
-        if (raw.english !== undefined) converted.push({ id: 'item_e', title: '英語專科', content: raw.english || '' });
-        if (raw.other !== undefined) converted.push({ id: 'item_o', title: '攜帶物品/其他', content: raw.other || '' });
+        if (raw.chinese !== undefined) converted.push({ id: 'item_c', title: '作業1', content: raw.chinese || '' });
+        if (raw.math !== undefined) converted.push({ id: 'item_m', title: '作業2', content: raw.math || '' });
+        if (raw.english !== undefined) converted.push({ id: 'item_e', title: '作業3', content: raw.english || '' });
+        if (raw.other !== undefined) converted.push({ id: 'item_o', title: '攜帶物品', content: raw.other || '' });
         return {
           items: converted.length > 0 ? converted : defaultItems,
           memo: raw.memo || ''
@@ -384,8 +379,9 @@ const ClassroomWidgets = {
         const renderItems = () => {
           itemsContainer.innerHTML = contactData.items.map((item, idx) => {
             const isCarry = item.title.includes('攜帶') || item.title.includes('物品');
-            const accentColor = isCarry ? '#D97706' : idx === 0 ? '#EA580C' : idx === 1 ? '#2563EB' : idx === 2 ? '#059669' : '#7C3AED';
-            const iconClass = isCarry ? 'fa-bag-shopping' : idx === 0 ? 'fa-pen-nib' : idx === 1 ? 'fa-calculator' : idx === 2 ? 'fa-language' : 'fa-list-check';
+            const accentColor = isCarry ? '#D97706' : '#2563EB';
+            const iconClass = isCarry ? 'fa-bag-shopping' : 'fa-pen-to-square';
+            const placeholder = isCarry ? '請輸入攜帶物品 (例：彩色筆、美勞剪刀、回條)' : `請輸入 ${item.title} 內容 (例：習作第 42~45 頁)`;
 
             return `
               <div class="hw-item-row" data-id="${item.id}" style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 7px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
@@ -410,7 +406,7 @@ const ClassroomWidgets = {
                     ` : ''}
                   </div>
                 </div>
-                <input type="text" class="hw-item-input" value="${item.content || ''}" placeholder="請填寫作業細項或攜帶物品 (例：第 42~45 頁、彩色筆與剪刀)"
+                <input type="text" class="hw-item-input" value="${item.content || ''}" placeholder="${placeholder}"
                   style="width: 100%; border: 1.5px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: ${fontSize}rem; outline: none; box-sizing: border-box;">
                 <div class="hw-item-zy hw-zhuyin-view" style="display: none; padding: 6px; border: 1.5px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; min-height: 38px;"></div>
               </div>
@@ -511,10 +507,18 @@ const ClassroomWidgets = {
 
         // 新增自訂項目按鈕
         addItemBtn.addEventListener('click', () => {
-          const newIdx = contactData.items.length + 1;
+          let maxNum = 0;
+          contactData.items.forEach(it => {
+            const m = it.title.match(/^作業(\d+)$/);
+            if (m) {
+              const num = parseInt(m[1], 10);
+              if (num > maxNum) maxNum = num;
+            }
+          });
+          const nextNum = Math.max(contactData.items.filter(x => x.title.startsWith('作業')).length + 1, maxNum + 1);
           const newItem = {
             id: 'item_' + Date.now(),
-            title: `作業項目 ${newIdx}`,
+            title: `作業${nextNum}`,
             content: ''
           };
           contactData.items.push(newItem);
@@ -5422,8 +5426,8 @@ const ClassroomWidgets = {
         }
 
         data = {
-          subjects: autoSubjects.length > 0 ? autoSubjects : ['數學習作', '國語習作', '社會習作', '課堂學習單'],
-          activeSubject: autoSubjects.length > 0 ? autoSubjects[0] : '數學習作',
+          subjects: autoSubjects.length > 0 ? autoSubjects : ['作業1', '作業2', '作業3', '攜帶物品'],
+          activeSubject: autoSubjects.length > 0 ? autoSubjects[0] : '作業1',
           records: {}
         };
       }
