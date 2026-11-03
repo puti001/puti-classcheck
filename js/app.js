@@ -10,6 +10,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Widget spawn methods map
   const widgetSpawners = {
+    'attendance': () => ClassroomWidgets.spawnAttendance(wm),
+    'homework-check': () => ClassroomWidgets.spawnHomeworkCheck(wm),
+    'seating': () => ClassroomWidgets.spawnSeatingChart(wm),
     'clock': () => ClassroomWidgets.spawnClock(wm),
     'calendar': () => ClassroomWidgets.spawnCalendar(wm),
     'timer': () => ClassroomWidgets.spawnTimer(wm),
@@ -701,6 +704,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. Bottom Dock Direct Triggers
   // =========================================================================
   const dockActions = {
+    'dock-attendance': () => ClassroomWidgets.spawnAttendance(wm),
+    'dock-homework-check': () => ClassroomWidgets.spawnHomeworkCheck(wm),
+    'dock-seating': () => ClassroomWidgets.spawnSeatingChart(wm),
     'dock-traffic': () => ClassroomWidgets.spawnTrafficLight(wm),
     'dock-symbols': () => ClassroomWidgets.spawnWorkSymbols(wm),
     'dock-timer': () => ClassroomWidgets.spawnTimer(wm),
@@ -751,7 +757,12 @@ document.addEventListener('DOMContentLoaded', () => {
     wm.spawnCounter = 0;
     window.soundEngine.playFanfare();
 
-    if (scenario === 'focus') {
+    if (scenario === 'morning') {
+      ClassroomWidgets.spawnAttendance(wm);
+      setTimeout(() => ClassroomWidgets.spawnHomeworkCheck(wm), 80);
+      setTimeout(() => ClassroomWidgets.spawnContactBook(wm), 160);
+      setTimeout(() => ClassroomWidgets.spawnClock(wm), 240);
+    } else if (scenario === 'focus') {
       ClassroomWidgets.spawnClock(wm);
       setTimeout(() => ClassroomWidgets.spawnTrafficLight(wm), 80);
       setTimeout(() => ClassroomWidgets.spawnTimer(wm), 160);
@@ -857,6 +868,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const scenMorningBtn = document.getElementById('scen-morning');
+  if (scenMorningBtn) scenMorningBtn.addEventListener('click', () => applyScenario('morning'));
   if (scenFocusBtn) scenFocusBtn.addEventListener('click', () => applyScenario('focus'));
   if (scenCompeteBtn) scenCompeteBtn.addEventListener('click', () => applyScenario('compete'));
   if (scenDismissalBtn) scenDismissalBtn.addEventListener('click', () => applyScenario('dismissal'));
@@ -895,19 +908,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     wm.spawnCounter = 0;
-    ClassroomWidgets.spawnTrafficLight(wm);
+    ClassroomWidgets.spawnAttendance(wm);
 
     setTimeout(() => {
-      ClassroomWidgets.spawnWorkSymbols(wm);
-    }, 80);
+      ClassroomWidgets.spawnHomeworkCheck(wm);
+    }, 100);
 
     setTimeout(() => {
-      ClassroomWidgets.spawnTimer(wm);
-    }, 160);
+      ClassroomWidgets.spawnContactBook(wm);
+    }, 200);
 
     setTimeout(() => {
       ClassroomWidgets.spawnClock(wm);
-    }, 240);
+    }, 300);
   };
 
   spawnDefaultLayout();

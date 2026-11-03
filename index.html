@@ -46,6 +46,7 @@
       <!-- Scenario Presets -->
       <div style="display: flex; gap: 3px; align-items: center; background: #FFF7ED; padding: 2px 6px; border-radius: var(--radius-pill); border: 1px solid #FFEDD5;">
         <span style="font-size: 0.74rem; font-weight: 800; color: #C2410C;"><i class="fa-solid fa-wand-magic-sparkles"></i> 情境：</span>
+        <button class="scale-btn active" id="scen-morning" style="color: #059669; font-weight: 800; background: #ECFDF5; border: 1.5px solid #A7F3D0;" title="一鍵切換晨會點名收作業佈局">📋 晨會點名</button>
         <button class="scale-btn" id="scen-focus" title="一鍵切換專注上課佈局">🧘 專注</button>
         <button class="scale-btn" id="scen-compete" title="一鍵切換小組競賽佈局">🏆 競賽</button>
         <button class="scale-btn" id="scen-dismissal" title="一鍵切換放學總結佈局">🎒 放學</button>
@@ -96,6 +97,18 @@
   <!-- Bottom Floating Dock -->
   <div class="bottom-dock-container">
     <nav class="bottom-dock" aria-label="課堂工具捷徑列">
+      <button class="dock-item" id="dock-attendance" title="課堂點名簿">
+        <i class="fa-solid fa-user-check" style="color: #10B981;"></i>
+        <span>點名簿</span>
+      </button>
+      <button class="dock-item" id="dock-homework-check" title="作業收發通">
+        <i class="fa-solid fa-box-archive" style="color: #F59E0B;"></i>
+        <span>作業箱</span>
+      </button>
+      <button class="dock-item" id="dock-seating" title="智慧座位表">
+        <i class="fa-solid fa-border-all" style="color: #3B82F6;"></i>
+        <span>座位表</span>
+      </button>
       <button class="dock-item" id="dock-traffic" title="紅綠燈">
         <i class="fa-solid fa-traffic-light" style="color: #FF4757;"></i>
         <span>紅綠燈</span>

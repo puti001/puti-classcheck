@@ -161,6 +161,10 @@ const ClassroomWidgets = {
     { id: 'stopwatch', category: 'time', name: '競賽碼錶', icon: 'fa-stopwatch', color: '#2EC4B6', desc: '課堂競賽、限時闖關與即時按圈計時' },
     { id: 'agenda', category: 'time', name: '作息時間表', icon: 'fa-list-check', color: '#52B788', desc: '可勾選劃記流程步驟，支援字體放大' },
 
+    // 📋 點名與作業收發核心
+    { id: 'attendance', category: 'order', name: '課堂點名簿', icon: 'fa-user-check', color: '#10B981', desc: '全班出勤點名、一鍵全員到齊、六態循環標記、複製LINE出勤通報' },
+    { id: 'homework-check', category: 'order', name: '作業收發通', icon: 'fa-box-archive', color: '#F59E0B', desc: '各科作業繳交點收、一鍵全員收齊、進度百分比、複製未交催繳名單' },
+    { id: 'seating', category: 'order', name: '智慧座位出勤表', icon: 'fa-border-all', color: '#3B82F6', desc: '教室全覽座位圖、同步出勤燈號、座位快速換位、支援直接點擊標記' },
     // 📢 秩序與課堂經營
     { id: 'traffic-light', category: 'order', name: '班級紅綠燈', icon: 'fa-traffic-light', color: '#FF4757', desc: '安靜/收尾/討論三色切換，支援橫直向' },
     { id: 'work-symbols', category: 'order', name: '課堂工作符號', icon: 'fa-icons', color: '#9A8CFF', desc: '靜音、輕聲、小組、全班4種指令圖示' },
@@ -4676,6 +4680,616 @@ const ClassroomWidgets = {
       },
       onClose: () => {
         if (timerInterval) clearInterval(timerInterval);
+      }
+    });
+  },
+
+  // =========================================================================
+  // 課堂點名簿 (Classroom Attendance & Roll Call)
+  // =========================================================================
+  spawnAttendance(wm) {
+    let roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
+    let activeClass = 'default';
+    try {
+      const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
+      if (classData && classData.activeId) activeClass = classData.activeId;
+    } catch(e){}
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    let currentDate = todayStr;
+
+    const statusMap = {
+      present:  { label: '到齊', badge: '到', bg: '#DCFCE7', color: '#166534', border: '#86EFAC', next: 'late' },
+      late:     { label: '遲到', badge: '遲', bg: '#FEF9C3', color: '#854D0E', border: '#FDE047', next: 'sick' },
+      sick:     { label: '病假', badge: '病', bg: '#DBEAFE', color: '#1E40AF', border: '#93C5FD', next: 'personal' },
+      personal: { label: '事假', badge: '事', bg: '#FFEDD5', color: '#9A3412', border: '#FDBA74', next: 'official' },
+      official: { label: '公假', badge: '公', bg: '#F3E8FF', color: '#6B21A8', border: '#D8B4FE', next: 'absent' },
+      absent:   { label: '曠課', badge: '缺', bg: '#FEE2E2', color: '#991B1B', border: '#FCA5A5', next: 'present' }
+    };
+
+    const getStorageKey = (d) => `puti_att_${activeClass}_${d}`;
+    let attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
+
+    const ensureData = () => {
+      roster.forEach(name => {
+        if (!attendanceData[name]) attendanceData[name] = { status: 'present', note: '' };
+      });
+    };
+    ensureData();
+
+    const saveAttendance = () => {
+      localStorage.setItem(getStorageKey(currentDate), JSON.stringify(attendanceData));
+      window.dispatchEvent(new CustomEvent('attendanceUpdated', { detail: attendanceData }));
+    };
+
+    const content = `
+      <div style="display: flex; flex-direction: column; height: 100%; gap: 10px; user-select: none;">
+        <!-- Top Toolbar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 8px 12px; border-radius: 14px; border: 1.5px solid #E2E8F0; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="date" id="att-date-picker" value="${currentDate}" style="padding: 4px 8px; border-radius: 8px; border: 1.5px solid #CBD5E1; font-weight: 700; font-size: 0.82rem; color: #334155; outline: none; background: #FFF;">
+            <button type="button" class="action-btn-main" id="att-all-present-btn" style="height: 28px; padding: 0 10px; font-size: 0.76rem; background: linear-gradient(135deg, #10B981, #059669);" title="全班全員到齊">
+              <i class="fa-solid fa-check-double"></i> 全員到齊
+            </button>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="action-btn-secondary" id="att-copy-btn" style="height: 28px; padding: 0 10px; font-size: 0.76rem; color: #059669; font-weight: 800;" title="一鍵複製 LINE 出勤通報文字">
+              <i class="fa-brands fa-line"></i> LINE 通報
+            </button>
+            <button type="button" class="action-btn-secondary" id="att-roster-btn" style="height: 28px; padding: 0 8px; font-size: 0.76rem;" title="編輯學生名單">
+              <i class="fa-solid fa-users-gear"></i> 名冊 (<span id="att-roster-count">${roster.length}</span>)
+            </button>
+          </div>
+        </div>
+
+        <!-- Attendance Stats Summary Bar -->
+        <div style="display: flex; justify-content: space-around; align-items: center; background: #FFF7ED; padding: 6px 12px; border-radius: 12px; border: 1px solid #FFEDD5; font-size: 0.8rem; font-weight: 800;">
+          <span style="color: #475569;" id="att-stat-total">應到: ${roster.length}</span>
+          <span style="color: #166534;" id="att-stat-present">實到: 0</span>
+          <span style="color: #854D0E;" id="att-stat-late">遲到: 0</span>
+          <span style="color: #1E40AF;" id="att-stat-leave">請假: 0</span>
+          <span style="color: #991B1B;" id="att-stat-absent">缺席: 0</span>
+        </div>
+
+        <!-- Student Chips Grid -->
+        <div id="att-grid" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; padding: 4px; align-content: start;">
+        </div>
+
+        <!-- Footer Helper -->
+        <div style="font-size: 0.75rem; color: #94A3B8; text-align: center;">
+          💡 點擊學生卡片輪替【到齊 ➜ 遲到 ➜ 病假 ➜ 事假 ➜ 公假 ➜ 曠課】
+        </div>
+      </div>
+    `;
+
+    wm.spawnWindow({
+      title: '課堂點名簿',
+      icon: 'fa-user-check',
+      width: 580,
+      height: 500,
+      type: 'attendance',
+      contentHtml: content,
+      onInit: (el) => {
+        const grid = el.querySelector('#att-grid');
+        const datePicker = el.querySelector('#att-date-picker');
+        const allPresentBtn = el.querySelector('#att-all-present-btn');
+        const copyBtn = el.querySelector('#att-copy-btn');
+        const rosterBtn = el.querySelector('#att-roster-btn');
+        const countSpan = el.querySelector('#att-roster-count');
+
+        const statTotal = el.querySelector('#att-stat-total');
+        const statPresent = el.querySelector('#att-stat-present');
+        const statLate = el.querySelector('#att-stat-late');
+        const statLeave = el.querySelector('#att-stat-leave');
+        const statAbsent = el.querySelector('#att-stat-absent');
+
+        const render = () => {
+          ensureData();
+          if (countSpan) countSpan.textContent = roster.length;
+
+          let presentCount = 0, lateCount = 0, leaveCount = 0, absentCount = 0;
+
+          grid.innerHTML = roster.map((name) => {
+            const item = attendanceData[name] || { status: 'present', note: '' };
+            const conf = statusMap[item.status] || statusMap.present;
+
+            if (item.status === 'present') presentCount++;
+            else if (item.status === 'late') lateCount++;
+            else if (['sick', 'personal', 'official'].includes(item.status)) leaveCount++;
+            else if (item.status === 'absent') absentCount++;
+
+            return `
+              <div class="att-card-item" data-name="${name}" style="background: ${conf.bg}; border: 1.5px solid ${conf.border}; border-radius: 12px; padding: 8px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <div style="font-size: 0.88rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${name}</div>
+                <span style="font-size: 0.72rem; font-weight: 900; background: ${conf.color}; color: #FFF; padding: 1px 7px; border-radius: 8px; line-height: 1.2;">${conf.badge} ${conf.label}</span>
+              </div>
+            `;
+          }).join('');
+
+          statTotal.textContent = `應到: ${roster.length}`;
+          statPresent.textContent = `實到: ${presentCount}`;
+          statLate.textContent = `遲到: ${lateCount}`;
+          statLeave.textContent = `請假: ${leaveCount}`;
+          statAbsent.textContent = `缺席: ${absentCount}`;
+
+          grid.querySelectorAll('.att-card-item').forEach(card => {
+            card.addEventListener('click', () => {
+              const name = card.getAttribute('data-name');
+              const cur = attendanceData[name] ? attendanceData[name].status : 'present';
+              const next = statusMap[cur] ? statusMap[cur].next : 'present';
+              attendanceData[name] = { status: next, note: (attendanceData[name] && attendanceData[name].note) || '' };
+              if (window.soundEngine) window.soundEngine.playTick();
+              saveAttendance();
+              render();
+            });
+          });
+        };
+
+        const onRosterUpdated = (e) => {
+          if (e.detail && Array.isArray(e.detail)) {
+            roster = [...e.detail];
+            try {
+              const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
+              if (classData && classData.activeId) activeClass = classData.activeId;
+            } catch(err){}
+            attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
+            render();
+          }
+        };
+        window.addEventListener('rosterUpdated', onRosterUpdated);
+
+        datePicker.addEventListener('change', (e) => {
+          currentDate = e.target.value || todayStr;
+          attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
+          render();
+        });
+
+        allPresentBtn.addEventListener('click', () => {
+          roster.forEach(name => {
+            attendanceData[name] = { status: 'present', note: '' };
+          });
+          if (window.soundEngine) window.soundEngine.playCoin();
+          saveAttendance();
+          render();
+        });
+
+        copyBtn.addEventListener('click', () => {
+          let late = [], sick = [], personal = [], official = [], absent = [];
+          let presentCount = 0;
+
+          roster.forEach(name => {
+            const st = attendanceData[name] ? attendanceData[name].status : 'present';
+            if (st === 'present') presentCount++;
+            else if (st === 'late') late.push(name);
+            else if (st === 'sick') sick.push(name);
+            else if (st === 'personal') personal.push(name);
+            else if (st === 'official') official.push(name);
+            else if (st === 'absent') absent.push(name);
+          });
+
+          let text = `【今日課堂出勤通報】📅 ${currentDate}\n`;
+          text += `應到：${roster.length} 人 / 實到：${presentCount} 人\n`;
+          if (late.length > 0) text += `⏰ 遲到：${late.join('、')}\n`;
+          if (sick.length > 0) text += `🏥 病假：${sick.join('、')}\n`;
+          if (personal.length > 0) text += `📋 事假：${personal.join('、')}\n`;
+          if (official.length > 0) text += `🎖️ 公假：${official.join('、')}\n`;
+          if (absent.length > 0) text += `❌ 缺席：${absent.join('、')}\n`;
+          if (late.length === 0 && sick.length === 0 && personal.length === 0 && official.length === 0 && absent.length === 0) {
+            text += `🎉 全員到齊，精神奕奕！\n`;
+          }
+
+          navigator.clipboard.writeText(text).then(() => {
+            alert('📋 今日出勤通報已複製至剪貼簿！可直接貼至 LINE。\n\n' + text);
+          }).catch(() => {
+            prompt('請手動複製出勤通報：', text);
+          });
+        });
+
+        rosterBtn.addEventListener('click', () => {
+          const globalBtn = document.getElementById('btn-global-roster');
+          if (globalBtn) globalBtn.click();
+        });
+
+        render();
+      }
+    });
+  },
+
+  // =========================================================================
+  // 作業收發通 (Homework Check & Collection Manager)
+  // =========================================================================
+  spawnHomeworkCheck(wm) {
+    let roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
+    let activeClass = 'default';
+    try {
+      const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
+      if (classData && classData.activeId) activeClass = classData.activeId;
+    } catch(e){}
+
+    const getHwStorageKey = () => `puti_hw_check_${activeClass}`;
+    let hwData = JSON.parse(localStorage.getItem(getHwStorageKey()) || 'null') || {
+      activeSubject: '數學習作',
+      subjects: ['數學習作', '國語習作', '社會習作', '美勞撕貼', '課堂學習單'],
+      records: {}
+    };
+
+    const saveHwData = () => {
+      localStorage.setItem(getHwStorageKey(), JSON.stringify(hwData));
+    };
+
+    const content = `
+      <div style="display: flex; flex-direction: column; height: 100%; gap: 10px; user-select: none;">
+        <!-- Subject Tabs & Actions Bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 14px; border: 1.5px solid #E2E8F0; gap: 8px; flex-wrap: wrap;">
+          <div id="hw-tabs-container" style="display: flex; gap: 6px; overflow-x: auto; flex: 1; align-items: center; padding-bottom: 2px;">
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <button type="button" class="action-btn-secondary" id="hw-add-subject-btn" style="height: 28px; padding: 0 8px; font-size: 0.74rem; border-style: dashed;" title="新增作業科目">
+              <i class="fa-solid fa-plus"></i> 新作業
+            </button>
+            <button type="button" class="action-btn-secondary" id="hw-del-subject-btn" style="height: 28px; padding: 0 6px; font-size: 0.74rem; color: #EF4444;" title="刪除此作業項目">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Progress Bar & Batch Actions -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #FFF9DB; padding: 8px 12px; border-radius: 12px; border: 1px solid #FFE066; gap: 10px;">
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 800; color: #D9480F;">
+              <span id="hw-stat-subject-title">數學習作</span>
+              <span id="hw-stat-progress-text">已收 0 / 0 人 (0%)</span>
+            </div>
+            <div style="height: 8px; background: #E9ECEF; border-radius: 4px; overflow: hidden;">
+              <div id="hw-stat-progress-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #10B981, #059669); transition: width 0.25s ease;"></div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="action-btn-main" id="hw-all-check-btn" style="height: 28px; padding: 0 10px; font-size: 0.76rem; background: linear-gradient(135deg, #10B981, #059669);" title="全員已交">
+              <i class="fa-solid fa-check"></i> 全交
+            </button>
+            <button type="button" class="action-btn-secondary" id="hw-copy-missing-btn" style="height: 28px; padding: 0 8px; font-size: 0.76rem; color: #D97706; font-weight: 800;" title="複製未交座號名單">
+              <i class="fa-solid fa-clipboard-list"></i> 催繳
+            </button>
+          </div>
+        </div>
+
+        <!-- Student Cards Grid -->
+        <div id="hw-students-grid" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; padding: 4px; align-content: start;">
+        </div>
+
+        <!-- Footer Helper -->
+        <div style="font-size: 0.75rem; color: #94A3B8; text-align: center;">
+          💡 點擊學生卡片即可立即切換【已繳交 (綠色打勾)】或【未繳交 (粉紅標記)】
+        </div>
+      </div>
+    `;
+
+    wm.spawnWindow({
+      title: '作業收發通',
+      icon: 'fa-box-archive',
+      width: 580,
+      height: 500,
+      type: 'homework-check',
+      contentHtml: content,
+      onInit: (el) => {
+        const tabsContainer = el.querySelector('#hw-tabs-container');
+        const grid = el.querySelector('#hw-students-grid');
+        const addSubBtn = el.querySelector('#hw-add-subject-btn');
+        const delSubBtn = el.querySelector('#hw-del-subject-btn');
+        const allCheckBtn = el.querySelector('#hw-all-check-btn');
+        const copyMissingBtn = el.querySelector('#hw-copy-missing-btn');
+        const titleSpan = el.querySelector('#hw-stat-subject-title');
+        const progressText = el.querySelector('#hw-stat-progress-text');
+        const progressBar = el.querySelector('#hw-stat-progress-bar');
+
+        const ensureActiveSubject = () => {
+          if (!hwData.subjects || hwData.subjects.length === 0) {
+            hwData.subjects = ['今日作業'];
+          }
+          if (!hwData.activeSubject || !hwData.subjects.includes(hwData.activeSubject)) {
+            hwData.activeSubject = hwData.subjects[0];
+          }
+          if (!hwData.records) hwData.records = {};
+          if (!hwData.records[hwData.activeSubject]) {
+            hwData.records[hwData.activeSubject] = {};
+          }
+        };
+
+        const renderTabs = () => {
+          ensureActiveSubject();
+          tabsContainer.innerHTML = hwData.subjects.map(sub => {
+            const isActive = sub === hwData.activeSubject;
+            const rec = hwData.records[sub] || {};
+            const doneCount = roster.filter(name => rec[name]).length;
+
+            return `
+              <button type="button" class="hw-sub-tab ${isActive ? 'active' : ''}" data-sub="${sub}" style="height: 28px; padding: 0 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 800; border: 1.5px solid ${isActive ? '#F59E0B' : '#E2E8F0'}; background: ${isActive ? '#FEF3C7' : '#FFF'}; color: ${isActive ? '#B45309' : '#64748B'}; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;">
+                <span>${sub}</span>
+                <span style="font-size: 0.7rem; background: ${isActive ? '#FDE68A' : '#F1F5F9'}; padding: 1px 5px; border-radius: 6px;">${doneCount}/${roster.length}</span>
+              </button>
+            `;
+          }).join('');
+
+          tabsContainer.querySelectorAll('.hw-sub-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+              hwData.activeSubject = btn.getAttribute('data-sub');
+              saveHwData();
+              render();
+            });
+          });
+        };
+
+        const render = () => {
+          ensureActiveSubject();
+          renderTabs();
+
+          const sub = hwData.activeSubject;
+          const rec = hwData.records[sub] || {};
+          let doneCount = 0;
+
+          grid.innerHTML = roster.map(name => {
+            const isDone = !!rec[name];
+            if (isDone) doneCount++;
+
+            return `
+              <div class="hw-check-card" data-name="${name}" style="background: ${isDone ? '#DCFCE7' : '#FFF1F2'}; border: 1.5px solid ${isDone ? '#86EFAC' : '#FECDD3'}; border-radius: 12px; padding: 8px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <div style="font-size: 0.88rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${name}</div>
+                <span style="font-size: 0.72rem; font-weight: 900; background: ${isDone ? '#10B981' : '#F43F5E'}; color: #FFF; padding: 1px 7px; border-radius: 8px; line-height: 1.2;">
+                  ${isDone ? '✓ 已繳交' : '✕ 未交'}
+                </span>
+              </div>
+            `;
+          }).join('');
+
+          const total = roster.length;
+          const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+          titleSpan.textContent = sub;
+          progressText.textContent = `已收 ${doneCount} / ${total} 人 (${pct}%)`;
+          progressBar.style.width = `${pct}%`;
+
+          grid.querySelectorAll('.hw-check-card').forEach(card => {
+            card.addEventListener('click', () => {
+              const name = card.getAttribute('data-name');
+              rec[name] = !rec[name];
+              if (window.soundEngine) window.soundEngine.playTick();
+              saveHwData();
+              render();
+            });
+          });
+        };
+
+        const onRosterUpdated = (e) => {
+          if (e.detail && Array.isArray(e.detail)) {
+            roster = [...e.detail];
+            try {
+              const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
+              if (classData && classData.activeId) activeClass = classData.activeId;
+            } catch(err){}
+            hwData = JSON.parse(localStorage.getItem(getHwStorageKey()) || 'null') || hwData;
+            render();
+          }
+        };
+        window.addEventListener('rosterUpdated', onRosterUpdated);
+
+        addSubBtn.addEventListener('click', () => {
+          const name = prompt('請輸入新作業項目名稱（如：數習第 38 頁、美勞黏土）：');
+          if (name && name.trim()) {
+            const clean = name.trim();
+            if (!hwData.subjects.includes(clean)) {
+              hwData.subjects.push(clean);
+              hwData.activeSubject = clean;
+              if (!hwData.records[clean]) hwData.records[clean] = {};
+              saveHwData();
+              render();
+            }
+          }
+        });
+
+        delSubBtn.addEventListener('click', () => {
+          if (hwData.subjects.length <= 1) {
+            alert('至少保留一項作業項目！');
+            return;
+          }
+          if (confirm(`確定要刪除作業【${hwData.activeSubject}】的紀錄嗎？`)) {
+            const toDel = hwData.activeSubject;
+            delete hwData.records[toDel];
+            hwData.subjects = hwData.subjects.filter(s => s !== toDel);
+            hwData.activeSubject = hwData.subjects[0];
+            saveHwData();
+            render();
+          }
+        });
+
+        allCheckBtn.addEventListener('click', () => {
+          const rec = hwData.records[hwData.activeSubject] || {};
+          roster.forEach(name => {
+            rec[name] = true;
+          });
+          hwData.records[hwData.activeSubject] = rec;
+          if (window.soundEngine) window.soundEngine.playCoin();
+          saveHwData();
+          render();
+        });
+
+        copyMissingBtn.addEventListener('click', () => {
+          const sub = hwData.activeSubject;
+          const rec = hwData.records[sub] || {};
+          const missing = roster.filter(name => !rec[name]);
+
+          let text = `【作業催繳通報】📚 ${sub}\n`;
+          text += `應收：${roster.length} 人 / 已收：${roster.length - missing.length} 人\n`;
+          if (missing.length === 0) {
+            text += `🎉 全班已全數繳齊，太棒了！\n`;
+          } else {
+            text += `⚠️ 尚未繳交 (${missing.length} 人)：\n${missing.join('、')}\n請儘速完成並繳交！\n`;
+          }
+
+          navigator.clipboard.writeText(text).then(() => {
+            alert('📋 作業催繳名單已複製至剪貼簿！可直接貼至 LINE 或黑板聯絡簿。\n\n' + text);
+          }).catch(() => {
+            prompt('請手動複製催繳名單：', text);
+          });
+        });
+
+        render();
+      }
+    });
+  },
+
+  // =========================================================================
+  // 智慧座位出勤表 (Smart Seating & Attendance Map)
+  // =========================================================================
+  spawnSeatingChart(wm) {
+    let roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
+    let activeClass = 'default';
+    try {
+      const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
+      if (classData && classData.activeId) activeClass = classData.activeId;
+    } catch(e){}
+
+    const getSeatKey = () => `puti_seats_${activeClass}`;
+    let seatLayout = JSON.parse(localStorage.getItem(getSeatKey()) || 'null');
+    if (!seatLayout || !Array.isArray(seatLayout) || seatLayout.length !== 30) {
+      seatLayout = [...roster];
+      while (seatLayout.length < 30) seatLayout.push('');
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const getAttKey = () => `puti_att_${activeClass}_${todayStr}`;
+    let attendanceData = JSON.parse(localStorage.getItem(getAttKey()) || '{}');
+
+    const statusBadgeMap = {
+      present:  { label: '到', bg: '#22C55E' },
+      late:     { label: '遲', bg: '#EAB308' },
+      sick:     { label: '病', bg: '#3B82F6' },
+      personal: { label: '事', bg: '#F97316' },
+      official: { label: '公', bg: '#A855F7' },
+      absent:   { label: '缺', bg: '#EF4444' }
+    };
+
+    const saveSeats = () => {
+      localStorage.setItem(getSeatKey(), JSON.stringify(seatLayout));
+    };
+
+    const content = `
+      <div style="display: flex; flex-direction: column; height: 100%; gap: 8px; user-select: none;">
+        <!-- Top Toolbar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #F1F5F9; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #CBD5E1;">
+          <div style="font-weight: 800; font-size: 0.84rem; color: #334155;">
+            <i class="fa-solid fa-chalkboard-user"></i> 講台 / 黑板前排方向
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="action-btn-secondary" id="seat-shuffle-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;">
+              <i class="fa-solid fa-shuffle"></i> 隨機排座
+            </button>
+            <button type="button" class="action-btn-secondary" id="seat-reset-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;">
+              <i class="fa-solid fa-arrow-rotate-left"></i> 座號順序
+            </button>
+          </div>
+        </div>
+
+        <!-- Seating Grid -->
+        <div id="seat-grid-container" style="flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 4px; overflow-y: auto;">
+        </div>
+
+        <div style="font-size: 0.72rem; color: #94A3B8; text-align: center;">
+          💡 點擊座位學生可直接同步切換出勤狀態；燈號：🟢到 🟡遲 🔵病 🟠事 🟣公 🔴缺
+        </div>
+      </div>
+    `;
+
+    wm.spawnWindow({
+      title: '智慧座位出勤表',
+      icon: 'fa-border-all',
+      width: 620,
+      height: 500,
+      type: 'seating',
+      contentHtml: content,
+      onInit: (el) => {
+        const grid = el.querySelector('#seat-grid-container');
+        const shuffleBtn = el.querySelector('#seat-shuffle-btn');
+        const resetBtn = el.querySelector('#seat-reset-btn');
+
+        const renderGrid = () => {
+          attendanceData = JSON.parse(localStorage.getItem(getAttKey()) || '{}');
+
+          grid.innerHTML = seatLayout.map((name, idx) => {
+            if (!name) {
+              return `
+                <div style="background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 10px; padding: 8px 2px; text-align: center; color: #94A3B8; font-size: 0.76rem; min-height: 58px; display: flex; align-items: center; justify-content: center;">
+                  空位
+                </div>
+              `;
+            }
+
+            const att = attendanceData[name] || { status: 'present' };
+            const badge = statusBadgeMap[att.status] || statusBadgeMap.present;
+
+            return `
+              <div class="seat-card-item" data-idx="${idx}" data-name="${name}" style="background: #FFF; border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 6px 2px; text-align: center; cursor: pointer; transition: all 0.15s; position: relative; min-height: 58px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <div style="font-size: 0.8rem; font-weight: 800; color: #1E293B; max-width: 95%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</div>
+                <span style="position: absolute; top: 2px; right: 2px; font-size: 0.65rem; font-weight: 900; background: ${badge.bg}; color: #FFF; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">${badge.label}</span>
+              </div>
+            `;
+          }).join('');
+
+          grid.querySelectorAll('.seat-card-item').forEach(card => {
+            card.addEventListener('click', () => {
+              const name = card.getAttribute('data-name');
+              const nextStatusCycle = {
+                present: 'late',
+                late: 'sick',
+                sick: 'personal',
+                personal: 'official',
+                official: 'absent',
+                absent: 'present'
+              };
+              const cur = (attendanceData[name] && attendanceData[name].status) || 'present';
+              const nxt = nextStatusCycle[cur] || 'present';
+              attendanceData[name] = { status: nxt, note: (attendanceData[name] && attendanceData[name].note) || '' };
+              localStorage.setItem(getAttKey(), JSON.stringify(attendanceData));
+              window.dispatchEvent(new CustomEvent('attendanceUpdated', { detail: attendanceData }));
+              if (window.soundEngine) window.soundEngine.playTick();
+              renderGrid();
+            });
+          });
+        };
+
+        const onAttUpdated = () => renderGrid();
+        window.addEventListener('attendanceUpdated', onAttUpdated);
+
+        const onRosterUpdated = (e) => {
+          if (e.detail && Array.isArray(e.detail)) {
+            roster = [...e.detail];
+            try {
+              const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
+              if (classData && classData.activeId) activeClass = classData.activeId;
+            } catch(err){}
+            seatLayout = [...roster];
+            while (seatLayout.length < 30) seatLayout.push('');
+            saveSeats();
+            renderGrid();
+          }
+        };
+        window.addEventListener('rosterUpdated', onRosterUpdated);
+
+        shuffleBtn.addEventListener('click', () => {
+          seatLayout = [...seatLayout].sort(() => Math.random() - 0.5);
+          if (window.soundEngine) window.soundEngine.playCoin();
+          saveSeats();
+          renderGrid();
+        });
+
+        resetBtn.addEventListener('click', () => {
+          seatLayout = [...roster];
+          while (seatLayout.length < 30) seatLayout.push('');
+          if (window.soundEngine) window.soundEngine.playTick();
+          saveSeats();
+          renderGrid();
+        });
+
+        renderGrid();
       }
     });
   }
