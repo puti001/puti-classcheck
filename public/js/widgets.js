@@ -153,60 +153,21 @@ window.PutiZhuyin = {
 const ClassroomWidgets = {
   // Registry metadata for the "More Tools" drawer/modal
   registry: [
-    // ⏱️ 時間與計畫管理
-    { id: 'clock', category: 'time', name: '時鐘日曆', icon: 'fa-clock', color: '#4EA8DE', desc: '12/24時制、即時秒數與日曆日期' },
-    { id: 'calendar', category: 'time', name: '月曆檢視', icon: 'fa-calendar-days', color: '#3A86FF', desc: '完整月份檢視、確認重要週次與節日' },
-    { id: 'timer', category: 'time', name: '倒數計時器', icon: 'fa-hourglass-half', color: '#FF6B6B', desc: '雙模式計時器、環形進度條與提示鈴' },
-    { id: 'visual-timer', category: 'time', name: '視覺計時器', icon: 'fa-chart-pie', color: '#FF9F1C', desc: '沙漏圓餅漸消效果，專為幼兒/低年級設計' },
-    { id: 'stopwatch', category: 'time', name: '競賽碼錶', icon: 'fa-stopwatch', color: '#2EC4B6', desc: '課堂競賽、限時闖關與即時按圈計時' },
-    { id: 'agenda', category: 'time', name: '作息時間表', icon: 'fa-list-check', color: '#52B788', desc: '可勾選劃記流程步驟，支援字體放大' },
-
-    // 📋 點名與作業收發核心
-    { id: 'attendance', category: 'order', name: '課堂點名簿', icon: 'fa-user-check', color: '#10B981', desc: '全班出勤點名、一鍵全員到齊、六態循環標記、複製LINE出勤通報' },
-    { id: 'homework-check', category: 'order', name: '作業收發通', icon: 'fa-box-archive', color: '#F59E0B', desc: '各科作業繳交點收、一鍵全員收齊、進度百分比、複製未交催繳名單' },
-    { id: 'seating', category: 'order', name: '智慧座位出勤表', icon: 'fa-border-all', color: '#3B82F6', desc: '教室全覽座位圖、同步出勤燈號、座位快速換位、支援直接點擊標記' },
-    // 📢 秩序與課堂經營
-    { id: 'traffic-light', category: 'order', name: '班級紅綠燈', icon: 'fa-traffic-light', color: '#FF4757', desc: '安靜/收尾/討論三色切換，支援橫直向' },
-    { id: 'work-symbols', category: 'order', name: '課堂工作符號', icon: 'fa-icons', color: '#9A8CFF', desc: '靜音、輕聲、小組、全班4種指令圖示' },
-    { id: 'sound-meter', category: 'order', name: '教室音量計', icon: 'fa-volume-high', color: '#2ED573', desc: '麥克風即時監測教室分貝，超標自動警報' },
-    { id: 'scoreboard', category: 'order', name: '小組記分板', icon: 'fa-trophy', color: '#FFA502', desc: '多小組PK賽即時加減分與領先者皇冠' },
-
-    // 🎲 互動與隨機挑選
-    { id: 'buzzer', category: 'interactive', name: '課堂搶答神器', icon: 'fa-bell', color: '#E63946', desc: '現場大按鈕＋手機平板毫秒搶答，連動記分' },
-    { id: 'picker', category: 'interactive', name: '幸運抽籤點名', icon: 'fa-bullseye', color: '#FF9F1C', desc: '老虎機滾輪動畫、防重複機制、慶祝彩帶' },
-    { id: 'groups', category: 'interactive', name: '隨機分組工具', icon: 'fa-people-group', color: '#52B788', desc: '2~8組均勻打散名單，一鍵分組卡片' },
-    { id: 'dice', category: 'interactive', name: '3D 骰子與硬幣', icon: 'fa-dice', color: '#9A8CFF', desc: '巨大精緻立體象牙骰子、浮雕金幣翻轉' },
-    { id: 'rps', category: 'interactive', name: '剪刀石頭布', icon: 'fa-hand-back-fist', color: '#FF85A1', desc: '趣味猜拳互動動畫，隨機出拳裁決' },
-    { id: 'poll', category: 'interactive', name: '課堂即時投票', icon: 'fa-square-poll-vertical', color: '#4EA8DE', desc: '觸控＋手機雙端投票、可巨幅放大QR Code' },
-
-    // 📝 文字、繪圖與圖像
-    { id: 'contact', category: 'media', name: '家庭聯絡簿', icon: 'fa-book-open-reader', color: '#3A86FF', desc: '每日各科作業清單、帶物提醒、字級放大、一鍵複製' },
-    { id: 'announcement', category: 'media', name: '課堂大公告板', icon: 'fa-chalkboard', color: '#2D3748', desc: '醒目大字黑板公告，支援 A+/A- 字體無級縮放' },
-    { id: 'sticky', category: 'media', name: '隨手便利貼', icon: 'fa-note-sticky', color: '#FFA502', desc: '四色粉彩便利貼，支援字級放大調整' },
-    { id: 'whiteboard', category: 'media', name: '自由塗鴉白板', icon: 'fa-paintbrush', color: '#2EC4B6', desc: '黑板/白板/方格背景、調色盤、匯出PNG' },
-    { id: 'image', category: 'media', name: '教材圖片展示', icon: 'fa-image', color: '#FF6B6B', desc: '拖曳本機圖片或貼上網址即時展示' },
-    { id: 'stickers', category: 'media', name: '獎勵電子貼紙', icon: 'fa-award', color: '#FFD166', desc: '點擊直接印章蓋在畫面上，附鼓舞音效' },
-    { id: 'pdf', category: 'media', name: 'PDF 講義閱讀器', icon: 'fa-file-pdf', color: '#E63946', desc: '拖曳載入教學講義或考卷即時展示' },
-
-    // 🌐 多媒體與外部整合
-    { id: 'qrcode', category: 'integration', name: 'QR Code 產生器', icon: 'fa-qrcode', color: '#1B4965', desc: '輸入網址即時生成高解析度二維碼供掃描' },
-    { id: 'hyperlink', category: 'integration', name: '教學超連結按鈕', icon: 'fa-arrow-up-right-from-square', color: '#3A86FF', desc: '建立醒目捷徑按鈕直達 Kahoot、Padlet' },
-    { id: 'video', category: 'integration', name: 'YouTube 影片嵌入', icon: 'fa-circle-play', color: '#E63946', desc: '貼上 YouTube 連結在畫面中無縫播放' },
-    { id: 'embed', category: 'integration', name: '網頁 iFrame 嵌入', icon: 'fa-code', color: '#6A4C93', desc: '嵌入 PhET 科學模擬、GeoGebra 或簡報' },
-    { id: 'webcam', category: 'integration', name: '實物投影/攝影機', icon: 'fa-camera', color: '#0077B6', desc: '支援切換實物投影機或筆電前後鏡頭' },
-    { id: 'ambient', category: 'integration', name: '專注音訊與白噪音', icon: 'fa-headphones', color: '#2A9D8F', desc: '雨聲、森林、咖啡館、白噪音專注烘托' },
-    { id: 'tally', category: 'order', name: '個人計分器', icon: 'fa-user-check', color: '#FF7B00', desc: '全班個別學生加扣分、排行榜頒獎、全班一鍵加分' },
-    { id: 'timetable', category: 'time', name: '班級功課表', icon: 'fa-calendar-week', color: '#3A86FF', desc: '週一至週五功課表、今日課程自動高亮、科目快捷晶片填寫' },
-    { id: 'days-countdown', category: 'time', name: '重要日子倒數', icon: 'fa-calendar-check', color: '#E63946', desc: '倒數段考、校外教學、畢業典禮、寒暑假等重要日子天數' },
-    {
-      id: 'user-guide',
-      name: '使用說明',
-      category: 'utility',
-      icon: 'fa-circle-question',
-      color: '#2563EB',
-      desc: '使用指南、教學工具庫與問題回報信箱'
-    },
-    { id: 'exam-timer', category: 'time', name: '考試計時器', icon: 'fa-stopwatch-20', color: '#E03131', desc: '段考日多科目時程自動推進、當前節次大字倒數與鐘響' }
+    // 📋 導師班務核心
+    { id: 'attendance', category: 'admin', name: '課堂點名簿', icon: 'fa-user-check', color: '#10B981', desc: '全班出勤點名、一鍵全員到齊、六態循環標記、複製LINE出勤通報' },
+    { id: 'homework-check', category: 'admin', name: '作業收發通', icon: 'fa-box-archive', color: '#F59E0B', desc: '各科作業繳交點收、一鍵全員收齊、進度百分比、複製未交催繳名單' },
+    { id: 'seating', category: 'admin', name: '智慧座位出勤表', icon: 'fa-border-all', color: '#3B82F6', desc: '教室全覽座位圖、同步出勤燈號、座位快速換位、支援直接點擊標記' },
+    { id: 'contact', category: 'admin', name: '家庭聯絡簿', icon: 'fa-book-open-reader', color: '#3A86FF', desc: '每日各科作業清單、帶物提醒、字級放大、一鍵複製LINE格式' },
+    { id: 'timetable', category: 'admin', name: '班級功課表', icon: 'fa-calendar-week', color: '#8B5CF6', desc: '週一至週五功課表、今日課程自動高亮、科目快捷晶片填寫' },
+    { id: 'days-countdown', category: 'admin', name: '重要日子倒數', icon: 'fa-calendar-check', color: '#E11D48', desc: '倒數段考、校外教學、畢業典禮、寒暑假等重要日子天數' },
+    { id: 'announcement', category: 'admin', name: '班務大公告板', icon: 'fa-chalkboard', color: '#2D3748', desc: '醒目大字黑板公告，支援 A+/A- 字體無級縮放' },
+    { id: 'picker', category: 'admin', name: '班級抽籤選人', icon: 'fa-bullseye', color: '#FF9F1C', desc: '值日生、差勤公差、幹部隨機抽籤，防重複機制' },
+    { id: 'timer', category: 'admin', name: '作息倒數計時器', icon: 'fa-hourglass-half', color: '#EF4444', desc: '早自習、午休、打掃時間倒數計時與提示鈴' },
+    { id: 'clock', category: 'admin', name: '時鐘與日曆', icon: 'fa-clock', color: '#0284C7', desc: '大字時間、即時秒數與今天國曆農曆日期' },
+    { id: 'sticky', category: 'admin', name: '班務便條紙', icon: 'fa-note-sticky', color: '#F59E0B', desc: '備忘待辦事項，支援粉彩四色切換' },
+    { id: 'pdf', category: 'admin', name: '通知單/講義閱覽', icon: 'fa-file-pdf', color: '#DC2626', desc: '拖曳載入學校行政通知單或考卷檔案展示' },
+    { id: 'hyperlink', category: 'admin', name: '常用班務網站捷徑', icon: 'fa-arrow-up-right-from-square', color: '#2563EB', desc: '校務行政系統、親師生平台快速跳轉' },
+    { id: 'user-guide', category: 'utility', name: '使用說明', icon: 'fa-circle-question', color: '#2563EB', desc: '點名作業通使用指南與班務小技巧' }
   ],
 
   // =========================================================================
@@ -4762,7 +4723,7 @@ const ClassroomWidgets = {
       </div>
     `;
 
-    wm.spawnWindow({
+    wm.createWindow({
       title: '課堂點名簿',
       icon: 'fa-user-check',
       width: 580,
@@ -4965,7 +4926,7 @@ const ClassroomWidgets = {
       </div>
     `;
 
-    wm.spawnWindow({
+    wm.createWindow({
       title: '作業收發通',
       icon: 'fa-box-archive',
       width: 580,
@@ -5199,7 +5160,7 @@ const ClassroomWidgets = {
       </div>
     `;
 
-    wm.spawnWindow({
+    wm.createWindow({
       title: '智慧座位出勤表',
       icon: 'fa-border-all',
       width: 620,

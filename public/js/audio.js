@@ -93,6 +93,10 @@ class SoundEngine {
   }
 
   // Timer Finished - warm two-tone chime
+  playCoin() {
+    this.playChime();
+  }
+
   playChime() {
     if (this.muted) return;
     this.init();

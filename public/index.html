@@ -44,12 +44,11 @@
 
     <div class="top-actions">
       <!-- Scenario Presets -->
-      <div style="display: flex; gap: 3px; align-items: center; background: #FFF7ED; padding: 2px 6px; border-radius: var(--radius-pill); border: 1px solid #FFEDD5;">
-        <span style="font-size: 0.74rem; font-weight: 800; color: #C2410C;"><i class="fa-solid fa-wand-magic-sparkles"></i> 情境：</span>
-        <button class="scale-btn active" id="scen-morning" style="color: #059669; font-weight: 800; background: #ECFDF5; border: 1.5px solid #A7F3D0;" title="一鍵切換晨會點名收作業佈局">📋 晨會點名</button>
-        <button class="scale-btn" id="scen-focus" title="一鍵切換專注上課佈局">🧘 專注</button>
-        <button class="scale-btn" id="scen-compete" title="一鍵切換小組競賽佈局">🏆 競賽</button>
-        <button class="scale-btn" id="scen-dismissal" title="一鍵切換放學總結佈局">🎒 放學</button>
+      <div style="display: flex; gap: 4px; align-items: center; background: #FFF7ED; padding: 2px 6px; border-radius: var(--radius-pill); border: 1px solid #FFEDD5;">
+        <span style="font-size: 0.74rem; font-weight: 800; color: #C2410C;"><i class="fa-solid fa-wand-magic-sparkles"></i> 班務情境：</span>
+        <button class="scale-btn active" id="scen-morning" style="color: #059669; font-weight: 800; background: #ECFDF5; border: 1.5px solid #A7F3D0;" title="一鍵開啟晨會點名、作業收發與聯絡簿">📋 晨會點名收簿</button>
+        <button class="scale-btn" id="scen-seating" style="color: #1D4ED8; font-weight: 800;" title="一鍵開啟座位表、功課表">🪑 班務排座</button>
+        <button class="scale-btn" id="scen-dismissal" style="color: #C2410C; font-weight: 800;" title="一鍵開啟聯絡簿、黑板公告與重要倒數">🎒 放學聯絡總結</button>
         <div id="custom-scenarios-bar" style="display: inline-flex; gap: 4px; align-items: center;"></div>
         <button class="scale-btn" id="scen-save-current" style="color: #2B8A3E; font-weight: 800;" title="將目前桌面擺設儲存為新情境"><i class="fa-solid fa-plus"></i> 存情境</button>
         <button class="scale-btn" id="scen-manage-btn" style="color: #495057;" title="管理自訂情境"><i class="fa-solid fa-gear"></i></button>
@@ -96,7 +95,7 @@
 
   <!-- Bottom Floating Dock -->
   <div class="bottom-dock-container">
-    <nav class="bottom-dock" aria-label="課堂工具捷徑列">
+        <nav class="bottom-dock" aria-label="導師班務工具捷徑列">
       <button class="dock-item" id="dock-attendance" title="課堂點名簿">
         <i class="fa-solid fa-user-check" style="color: #10B981;"></i>
         <span>點名簿</span>
@@ -105,53 +104,41 @@
         <i class="fa-solid fa-box-archive" style="color: #F59E0B;"></i>
         <span>作業箱</span>
       </button>
-      <button class="dock-item" id="dock-seating" title="智慧座位表">
+      <button class="dock-item" id="dock-seating" title="智慧座位出勤表">
         <i class="fa-solid fa-border-all" style="color: #3B82F6;"></i>
         <span>座位表</span>
       </button>
-      <button class="dock-item" id="dock-traffic" title="紅綠燈">
-        <i class="fa-solid fa-traffic-light" style="color: #FF4757;"></i>
-        <span>紅綠燈</span>
-      </button>
-      <button class="dock-item" id="dock-symbols" title="工作符號">
-        <i class="fa-solid fa-icons" style="color: #9A8CFF;"></i>
-        <span>工作符號</span>
-      </button>
-      <button class="dock-item" id="dock-timer" title="計時器">
-        <i class="fa-solid fa-stopwatch" style="color: #FF6B6B;"></i>
-        <span>計時器</span>
-      </button>
-      <button class="dock-item" id="dock-picker" title="幸運抽籤">
-        <i class="fa-solid fa-bullseye" style="color: #FF9F1C;"></i>
-        <span>抽籤點名</span>
-      </button>
-      <button class="dock-item" id="dock-whiteboard" title="塗鴉白板">
-        <i class="fa-solid fa-paintbrush" style="color: #2EC4B6;"></i>
-        <span>塗鴉白板</span>
-      </button>
-      <button class="dock-item" id="dock-scoreboard" title="小組記分板">
-        <i class="fa-solid fa-trophy" style="color: #FFA502;"></i>
-        <span>小組記分</span>
-      </button>
-      <button class="dock-item" id="dock-buzzer" title="課堂搶答器">
-        <i class="fa-solid fa-bell" style="color: #E63946;"></i>
-        <span>搶答神器</span>
-      </button>
       <button class="dock-item" id="dock-contact" title="家庭聯絡簿">
         <i class="fa-solid fa-book-open-reader" style="color: #3A86FF;"></i>
-        <span>家庭聯絡簿</span>
+        <span>聯絡簿</span>
       </button>
-      <button class="dock-item" id="dock-dice" title="骰子硬幣">
-        <i class="fa-solid fa-dice" style="color: #9A8CFF;"></i>
-        <span>骰子硬幣</span>
+      <button class="dock-item" id="dock-timetable" title="班級功課表">
+        <i class="fa-solid fa-calendar-week" style="color: #8B5CF6;"></i>
+        <span>功課表</span>
+      </button>
+      <button class="dock-item" id="dock-days-countdown" title="重要日子倒數">
+        <i class="fa-solid fa-calendar-check" style="color: #E11D48;"></i>
+        <span>倒數日</span>
+      </button>
+      <button class="dock-item" id="dock-announcement" title="班務大公告板">
+        <i class="fa-solid fa-chalkboard" style="color: #475569;"></i>
+        <span>大公告</span>
+      </button>
+      <button class="dock-item" id="dock-picker" title="班級抽籤選人">
+        <i class="fa-solid fa-bullseye" style="color: #FF9F1C;"></i>
+        <span>抽籤選人</span>
+      </button>
+      <button class="dock-item" id="dock-timer" title="作息倒數計時">
+        <i class="fa-solid fa-hourglass-half" style="color: #EF4444;"></i>
+        <span>計時器</span>
       </button>
 
       <div class="dock-divider"></div>
 
       <!-- More Tools Drawer Launcher -->
-      <button class="dock-item dock-item-more" id="dock-more-tools" title="打開全功能課堂工具箱">
+      <button class="dock-item dock-item-more" id="dock-more-tools" title="打開更多班務工具箱">
         <i class="fa-solid fa-layer-group" style="color: #FF9F1C; font-size: 1.45rem;"></i>
-        <span style="color: var(--primary); font-weight: 800;">更多工具</span>
+        <span style="color: var(--primary); font-weight: 800;">更多班務</span>
       </button>
     </nav>
   </div>

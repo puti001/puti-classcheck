@@ -13,39 +13,16 @@ document.addEventListener('DOMContentLoaded', () => {
     'attendance': () => ClassroomWidgets.spawnAttendance(wm),
     'homework-check': () => ClassroomWidgets.spawnHomeworkCheck(wm),
     'seating': () => ClassroomWidgets.spawnSeatingChart(wm),
-    'clock': () => ClassroomWidgets.spawnClock(wm),
-    'calendar': () => ClassroomWidgets.spawnCalendar(wm),
-    'timer': () => ClassroomWidgets.spawnTimer(wm),
-    'visual-timer': () => ClassroomWidgets.spawnVisualTimer(wm),
-    'stopwatch': () => ClassroomWidgets.spawnStopwatch(wm),
-    'agenda': () => ClassroomWidgets.spawnAgenda(wm),
-    'traffic-light': () => ClassroomWidgets.spawnTrafficLight(wm),
-    'work-symbols': () => ClassroomWidgets.spawnWorkSymbols(wm),
-    'sound-meter': () => ClassroomWidgets.spawnSoundMeter(wm),
-    'scoreboard': () => ClassroomWidgets.spawnScoreboard(wm),
-    'buzzer': () => ClassroomWidgets.spawnBuzzer(wm),
-    'picker': () => ClassroomWidgets.spawnPicker(wm),
-    'groups': () => ClassroomWidgets.spawnGroupMaker(wm),
-    'dice': () => ClassroomWidgets.spawnDice(wm),
-    'rps': () => ClassroomWidgets.spawnRPS(wm),
-    'poll': () => ClassroomWidgets.spawnPoll(wm),
     'contact': () => ClassroomWidgets.spawnContactBook(wm),
-    'sticky': () => ClassroomWidgets.spawnStickyNote(wm),
-    'announcement': () => ClassroomWidgets.spawnAnnouncement(wm),
-    'whiteboard': () => ClassroomWidgets.spawnWhiteboard(wm),
-    'image': () => ClassroomWidgets.spawnImageViewer(wm),
-    'stickers': () => ClassroomWidgets.spawnStickers(wm),
-    'pdf': () => ClassroomWidgets.spawnPDFViewer(wm),
-    'qrcode': () => ClassroomWidgets.spawnQRCode(wm),
-    'hyperlink': () => ClassroomWidgets.spawnHyperlink(wm),
-    'video': () => ClassroomWidgets.spawnVideo(wm),
-    'embed': () => ClassroomWidgets.spawnEmbed(wm),
-    'webcam': () => ClassroomWidgets.spawnWebcam(wm),
-    'ambient': () => ClassroomWidgets.spawnAmbientSound(wm),
-    'tally': () => ClassroomWidgets.spawnIndividualTally(wm),
     'timetable': () => ClassroomWidgets.spawnTimetable(wm),
     'days-countdown': () => ClassroomWidgets.spawnDaysCountdown(wm),
-    'exam-timer': () => ClassroomWidgets.spawnExamTimer(wm),
+    'announcement': () => ClassroomWidgets.spawnAnnouncement(wm),
+    'picker': () => ClassroomWidgets.spawnPicker(wm),
+    'timer': () => ClassroomWidgets.spawnTimer(wm),
+    'clock': () => ClassroomWidgets.spawnClock(wm),
+    'sticky': () => ClassroomWidgets.spawnStickyNote(wm),
+    'pdf': () => ClassroomWidgets.spawnPDFViewer(wm),
+    'hyperlink': () => ClassroomWidgets.spawnHyperlink(wm),
     'user-guide': () => ClassroomWidgets.spawnUserGuide(wm)
   };
 
@@ -707,18 +684,12 @@ document.addEventListener('DOMContentLoaded', () => {
     'dock-attendance': () => ClassroomWidgets.spawnAttendance(wm),
     'dock-homework-check': () => ClassroomWidgets.spawnHomeworkCheck(wm),
     'dock-seating': () => ClassroomWidgets.spawnSeatingChart(wm),
-    'dock-traffic': () => ClassroomWidgets.spawnTrafficLight(wm),
-    'dock-symbols': () => ClassroomWidgets.spawnWorkSymbols(wm),
-    'dock-timer': () => ClassroomWidgets.spawnTimer(wm),
-    'dock-visual-timer': () => ClassroomWidgets.spawnVisualTimer(wm),
-    'dock-picker': () => ClassroomWidgets.spawnPicker(wm),
-    'dock-whiteboard': () => ClassroomWidgets.spawnWhiteboard(wm),
-    'dock-scoreboard': () => ClassroomWidgets.spawnScoreboard(wm),
-    'dock-buzzer': () => ClassroomWidgets.spawnBuzzer(wm),
     'dock-contact': () => ClassroomWidgets.spawnContactBook(wm),
-    'dock-dice': () => ClassroomWidgets.spawnDice(wm),
-    'dock-sound': () => ClassroomWidgets.spawnSoundMeter(wm),
-    'dock-sticky': () => ClassroomWidgets.spawnStickyNote(wm)
+    'dock-timetable': () => ClassroomWidgets.spawnTimetable(wm),
+    'dock-days-countdown': () => ClassroomWidgets.spawnDaysCountdown(wm),
+    'dock-announcement': () => ClassroomWidgets.spawnAnnouncement(wm),
+    'dock-picker': () => ClassroomWidgets.spawnPicker(wm),
+    'dock-timer': () => ClassroomWidgets.spawnTimer(wm)
   };
 
   Object.keys(dockActions).forEach(id => {
@@ -755,27 +726,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const applyScenario = (scenario) => {
     wm.closeAll();
     wm.spawnCounter = 0;
-    window.soundEngine.playFanfare();
+    if (window.soundEngine) window.soundEngine.playFanfare();
 
     if (scenario === 'morning') {
       ClassroomWidgets.spawnAttendance(wm);
       setTimeout(() => ClassroomWidgets.spawnHomeworkCheck(wm), 80);
       setTimeout(() => ClassroomWidgets.spawnContactBook(wm), 160);
       setTimeout(() => ClassroomWidgets.spawnClock(wm), 240);
-    } else if (scenario === 'focus') {
-      ClassroomWidgets.spawnClock(wm);
-      setTimeout(() => ClassroomWidgets.spawnTrafficLight(wm), 80);
-      setTimeout(() => ClassroomWidgets.spawnTimer(wm), 160);
-      setTimeout(() => ClassroomWidgets.spawnWorkSymbols(wm), 240);
-    } else if (scenario === 'compete') {
-      ClassroomWidgets.spawnScoreboard(wm);
-      setTimeout(() => ClassroomWidgets.spawnBuzzer(wm), 80);
-      setTimeout(() => ClassroomWidgets.spawnDice(wm), 160);
-      setTimeout(() => ClassroomWidgets.spawnStopwatch(wm), 240);
+    } else if (scenario === 'seating') {
+      ClassroomWidgets.spawnSeatingChart(wm);
+      setTimeout(() => ClassroomWidgets.spawnTimetable(wm), 100);
+      setTimeout(() => ClassroomWidgets.spawnContactBook(wm), 200);
     } else if (scenario === 'dismissal') {
       ClassroomWidgets.spawnContactBook(wm);
       setTimeout(() => ClassroomWidgets.spawnAnnouncement(wm), 100);
-      setTimeout(() => ClassroomWidgets.spawnTimer(wm), 200);
+      setTimeout(() => ClassroomWidgets.spawnDaysCountdown(wm), 200);
     }
   };
 
@@ -870,8 +835,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const scenMorningBtn = document.getElementById('scen-morning');
   if (scenMorningBtn) scenMorningBtn.addEventListener('click', () => applyScenario('morning'));
-  if (scenFocusBtn) scenFocusBtn.addEventListener('click', () => applyScenario('focus'));
-  if (scenCompeteBtn) scenCompeteBtn.addEventListener('click', () => applyScenario('compete'));
+  const scenSeatingBtn = document.getElementById('scen-seating');
+  if (scenSeatingBtn) scenSeatingBtn.addEventListener('click', () => applyScenario('seating'));
   if (scenDismissalBtn) scenDismissalBtn.addEventListener('click', () => applyScenario('dismissal'));
 
   renderCustomScenarios();
@@ -898,29 +863,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // 6. Default Classroom Layout Spawn
   // =========================================================================
   const spawnDefaultLayout = () => {
-    const screenW = canvas.clientWidth || window.innerWidth;
-    const isMobile = screenW < 768;
-
-    if (isMobile) {
-      ClassroomWidgets.spawnTimer(wm);
-      ClassroomWidgets.spawnTrafficLight(wm);
-      return;
-    }
-
+    wm.closeAll();
     wm.spawnCounter = 0;
     ClassroomWidgets.spawnAttendance(wm);
-
-    setTimeout(() => {
-      ClassroomWidgets.spawnHomeworkCheck(wm);
-    }, 100);
-
-    setTimeout(() => {
-      ClassroomWidgets.spawnContactBook(wm);
-    }, 200);
-
-    setTimeout(() => {
-      ClassroomWidgets.spawnClock(wm);
-    }, 300);
+    setTimeout(() => ClassroomWidgets.spawnHomeworkCheck(wm), 100);
+    setTimeout(() => ClassroomWidgets.spawnContactBook(wm), 200);
+    setTimeout(() => ClassroomWidgets.spawnClock(wm), 300);
   };
 
   spawnDefaultLayout();
