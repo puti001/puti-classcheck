@@ -153,9 +153,9 @@ window.PutiZhuyin = {
 const ClassroomWidgets = {
   // Registry metadata for the "More Tools" drawer/modal
   registry: [
-    { id: 'attendance', category: 'admin', name: '課堂點名簿', icon: 'fa-user-check', color: '#10B981', desc: '全班出勤點名、一鍵全到復原、六種假別標記、複製LINE出勤日報' },
+    { id: 'attendance', category: 'admin', name: '課堂點名簿', icon: 'fa-user-check', color: '#10B981', desc: '全班出勤點名、一鍵全到復原、假別標記、複製LINE出勤日報' },
     { id: 'homework-check', category: 'admin', name: '作業收發通', icon: 'fa-box-archive', color: '#F59E0B', desc: '各科作業繳交點收、一鍵全收復原、進度百分比、複製未交催繳清單' },
-    { id: 'seating', category: 'admin', name: '智慧座位出勤表', icon: 'fa-border-all', color: '#3B82F6', desc: '雙向聯動點名、支援拖曳對調、點選對調、欄數切換與前後翻轉' },
+    { id: 'seating', category: 'admin', name: '班級座位表', icon: 'fa-border-all', color: '#3B82F6', desc: '班級座位排定、支援拖曳對調、點選對調、欄數切換與前後翻轉，支援拖曳縮放' },
     { id: 'contact', category: 'admin', name: '家庭聯絡簿', icon: 'fa-book-open-reader', color: '#3A86FF', desc: '每日各科作業清單、自訂快捷標籤、字級放大、一鍵複製LINE格式' },
     { id: 'timetable', category: 'admin', name: '班級功課表', icon: 'fa-calendar-week', color: '#8B5CF6', desc: '週一至週五課堂科目表、當日課程自動高亮、課前預備提醒' },
     { id: 'user-guide', category: 'admin', name: '使用說明', icon: 'fa-circle-question', color: '#2563EB', desc: '點名作業通使用指南與班務小技巧' }
@@ -4636,8 +4636,8 @@ const ClassroomWidgets = {
     });
   },
 
-  // =========================================================================
-  // 課堂點名簿 (Classroom Attendance & Roll Call) - 雙向連動版
+    // =========================================================================
+  // 課堂點名簿 (Classroom Attendance & Roll Call) - 獨立出勤管理
   // =========================================================================
   spawnAttendance(wm) {
     let roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
@@ -4650,13 +4650,14 @@ const ClassroomWidgets = {
     const todayStr = new Date().toISOString().split('T')[0];
     let currentDate = localStorage.getItem('puti_active_att_date') || todayStr;
 
+    // 清晰假別定義：不再重複出現「到 到齊」、「病 病假」
     const statusMap = {
-      present:  { label: '到齊', badge: '到', bg: '#DCFCE7', color: '#166534', border: '#86EFAC', next: 'late' },
-      late:     { label: '遲到', badge: '遲', bg: '#FEF9C3', color: '#854D0E', border: '#FDE047', next: 'sick' },
-      sick:     { label: '病假', badge: '病', bg: '#DBEAFE', color: '#1E40AF', border: '#93C5FD', next: 'personal' },
-      personal: { label: '事假', badge: '事', bg: '#FFEDD5', color: '#9A3412', border: '#FDBA74', next: 'official' },
-      official: { label: '公假', badge: '公', bg: '#F3E8FF', color: '#6B21A8', border: '#D8B4FE', next: 'absent' },
-      absent:   { label: '曠課', badge: '缺', bg: '#FEE2E2', color: '#991B1B', border: '#FCA5A5', next: 'present' }
+      present:  { label: '出席', bg: '#DCFCE7', color: '#166534', border: '#86EFAC', next: 'late' },
+      late:     { label: '遲到', bg: '#FEF9C3', color: '#854D0E', border: '#FDE047', next: 'sick' },
+      sick:     { label: '病假', bg: '#DBEAFE', color: '#1E40AF', border: '#93C5FD', next: 'personal' },
+      personal: { label: '事假', bg: '#FFEDD5', color: '#9A3412', border: '#FDBA74', next: 'official' },
+      official: { label: '公假', bg: '#F3E8FF', color: '#6B21A8', border: '#D8B4FE', next: 'absent' },
+      absent:   { label: '缺席', bg: '#FEE2E2', color: '#991B1B', border: '#FCA5A5', next: 'present' }
     };
 
     const getStorageKey = (d) => `puti_att_${activeClass}_${d}`;
@@ -4669,68 +4670,67 @@ const ClassroomWidgets = {
     };
     ensureData();
 
-    const saveAttendance = (source = 'attendance') => {
+    const saveAttendance = () => {
       localStorage.setItem(getStorageKey(currentDate), JSON.stringify(attendanceData));
       localStorage.setItem('puti_active_att_date', currentDate);
-      window.dispatchEvent(new CustomEvent('attendanceUpdated', {
-        detail: { classId: activeClass, date: currentDate, data: attendanceData, source }
-      }));
     };
 
     const content = `
-      <div style="display: flex; flex-direction: column; height: 100%; gap: 10px; user-select: none;">
+      <div class="attendance-container" style="display: flex; flex-direction: column; height: 100%; gap: 10px; user-select: none;">
         <!-- Top Toolbar -->
-        <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 8px 12px; border-radius: 14px; border: 1.5px solid #E2E8F0; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 14px; border: 1.5px solid #E2E8F0; gap: 8px; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <input type="date" id="att-date-picker" value="${currentDate}" style="padding: 4px 8px; border-radius: 8px; border: 1.5px solid #CBD5E1; font-weight: 700; font-size: 0.82rem; color: #334155; outline: none; background: #FFF;">
-            <button type="button" class="action-btn-main" id="att-all-present-btn" style="height: 28px; padding: 0 10px; font-size: 0.76rem; background: linear-gradient(135deg, #10B981, #059669);" title="全班全員到齊">
+            <input type="date" id="att-date-picker" value="${currentDate}"
+              style="padding: 3px 8px; border-radius: 8px; border: 1.5px solid #CBD5E1; font-weight: 800; color: #334155; font-size: 0.85rem; outline: none; background: #FFF; cursor: pointer;">
+            <button type="button" class="action-btn-main" id="att-all-present-btn" style="height: 30px; padding: 0 12px; font-size: 0.8rem; background: #059669;" title="一鍵將全班設為出席">
               <i class="fa-solid fa-check-double"></i> 全員到齊
             </button>
           </div>
           <div style="display: flex; gap: 6px;">
-            <button type="button" class="action-btn-secondary" id="att-copy-btn" style="height: 28px; padding: 0 10px; font-size: 0.76rem; color: #059669; font-weight: 800;" title="一鍵複製 LINE 出勤通報文字">
-              <i class="fa-brands fa-line"></i> LINE 通報
+            <button type="button" class="action-btn-secondary" id="att-copy-line-btn" style="height: 30px; padding: 0 10px; font-size: 0.8rem; color: #0284C7; border-color: #BAE6FD;" title="複製出勤統計日報，可直接貼到 LINE 班級群">
+              <i class="fa-brands fa-line" style="color: #06C755; font-size: 1rem;"></i> LINE 通報
             </button>
-            <button type="button" class="action-btn-secondary" id="att-roster-btn" style="height: 28px; padding: 0 8px; font-size: 0.76rem;" title="編輯學生名單">
-              <i class="fa-solid fa-users-gear"></i> 名冊 (<span id="att-roster-count">${roster.length}</span>)
+            <button type="button" class="action-btn-secondary" id="att-roster-btn" style="height: 30px; padding: 0 10px; font-size: 0.8rem;" title="查看與編輯學生名冊">
+              <i class="fa-solid fa-users"></i> 名冊 (${roster.length})
             </button>
           </div>
         </div>
 
-        <!-- Attendance Stats Summary Bar -->
-        <div style="display: flex; justify-content: space-around; align-items: center; background: #FFF7ED; padding: 6px 12px; border-radius: 12px; border: 1px solid #FFEDD5; font-size: 0.8rem; font-weight: 800;">
-          <span style="color: #475569;" id="att-stat-total">應到: ${roster.length}</span>
+        <!-- Quick Summary Counters -->
+        <div style="display: flex; justify-content: space-around; align-items: center; background: #FFF7ED; padding: 6px 12px; border-radius: 12px; border: 1px solid #FFEDD5; font-size: 0.82rem; font-weight: 800;">
+          <span style="color: #475569;" id="att-stat-total">應到: 0</span>
           <span style="color: #166534;" id="att-stat-present">實到: 0</span>
           <span style="color: #854D0E;" id="att-stat-late">遲到: 0</span>
           <span style="color: #1E40AF;" id="att-stat-leave">請假: 0</span>
           <span style="color: #991B1B;" id="att-stat-absent">缺席: 0</span>
         </div>
 
-        <!-- Student Chips Grid -->
-        <div id="att-grid" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; padding: 4px; align-content: start;">
+        <!-- Students Grid -->
+        <div id="att-grid-container" style="flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 4px; overflow-y: auto;">
         </div>
 
-        <!-- Footer Helper -->
-        <div style="font-size: 0.75rem; color: #94A3B8; text-align: center;">
-          💡 點擊學生卡片輪替出勤狀態（即時與【智慧座位表】雙向同步）
+        <!-- Bottom Guidance -->
+        <div style="text-align: center; font-size: 0.72rem; color: #64748B; padding: 2px;">
+          💡 點擊學生卡片可快速循環切換假別（出席 ➔ 遲到 ➔ 病假 ➔ 事假 ➔ 公假 ➔ 缺席）
         </div>
       </div>
     `;
+
+    let resizeObserver = null;
 
     wm.createWindow({
       title: '課堂點名簿',
       icon: 'fa-user-check',
       width: 580,
-      height: 500,
+      height: 520,
       type: 'attendance',
       contentHtml: content,
       onInit: (el) => {
-        const grid = el.querySelector('#att-grid');
+        const grid = el.querySelector('#att-grid-container');
         const datePicker = el.querySelector('#att-date-picker');
         const allPresentBtn = el.querySelector('#att-all-present-btn');
-        const copyBtn = el.querySelector('#att-copy-btn');
+        const copyBtn = el.querySelector('#att-copy-line-btn');
         const rosterBtn = el.querySelector('#att-roster-btn');
-        const countSpan = el.querySelector('#att-roster-count');
 
         const statTotal = el.querySelector('#att-stat-total');
         const statPresent = el.querySelector('#att-stat-present');
@@ -4738,11 +4738,35 @@ const ClassroomWidgets = {
         const statLeave = el.querySelector('#att-stat-leave');
         const statAbsent = el.querySelector('#att-stat-absent');
 
+        // Dynamic Resize Scaling for Text and Desks
+        const updateAttScale = () => {
+          const width = el.offsetWidth;
+          const height = el.offsetHeight;
+          const scale = Math.max(0.8, Math.min(2.5, Math.min(width / 540, height / 480)));
+          const nameFontSize = (0.88 * scale).toFixed(2) + 'rem';
+          const badgeFontSize = (0.74 * scale).toFixed(2) + 'rem';
+          const cardPadding = Math.round(8 * scale) + 'px ' + Math.round(4 * scale) + 'px';
+          const gapSize = Math.round(6 * scale) + 'px';
+
+          grid.style.gap = gapSize;
+          grid.querySelectorAll('.att-card-item').forEach(c => {
+            c.style.padding = cardPadding;
+            const nameEl = c.querySelector('.att-student-name');
+            if (nameEl) nameEl.style.fontSize = nameFontSize;
+            const badgeEl = c.querySelector('.att-status-badge');
+            if (badgeEl) badgeEl.style.fontSize = badgeFontSize;
+          });
+        };
+
+        resizeObserver = new ResizeObserver(() => updateAttScale());
+        resizeObserver.observe(el);
+
         const render = () => {
           ensureData();
-          if (countSpan) countSpan.textContent = roster.length;
-
-          let presentCount = 0, lateCount = 0, leaveCount = 0, absentCount = 0;
+          let presentCount = 0;
+          let lateCount = 0;
+          let leaveCount = 0;
+          let absentCount = 0;
 
           grid.innerHTML = roster.map((name) => {
             const item = attendanceData[name] || { status: 'present', note: '' };
@@ -4754,9 +4778,9 @@ const ClassroomWidgets = {
             else if (item.status === 'absent') absentCount++;
 
             return `
-              <div class="att-card-item" data-name="${name}" style="background: ${conf.bg}; border: 1.5px solid ${conf.border}; border-radius: 12px; padding: 8px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                <div style="font-size: 0.88rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${name}</div>
-                <span style="font-size: 0.72rem; font-weight: 900; background: ${conf.color}; color: #FFF; padding: 1px 7px; border-radius: 8px; line-height: 1.2;">${conf.badge} ${conf.label}</span>
+              <div class="att-card-item" data-name="${name}" style="background: ${conf.bg}; border: 1.5px solid ${conf.border}; border-radius: 12px; padding: 8px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+                <div class="att-student-name" style="font-size: 0.88rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${name}</div>
+                <span class="att-status-badge" style="font-size: 0.74rem; font-weight: 900; background: ${conf.color}; color: #FFF; padding: 2px 10px; border-radius: 999px; line-height: 1.2;">${conf.label}</span>
               </div>
             `;
           }).join('');
@@ -4772,46 +4796,23 @@ const ClassroomWidgets = {
               const name = card.getAttribute('data-name');
               const cur = attendanceData[name] ? attendanceData[name].status : 'present';
               const next = statusMap[cur] ? statusMap[cur].next : 'present';
-              attendanceData[name] = { status: next, note: (attendanceData[name] && attendanceData[name].note) || '' };
+              attendanceData[name] = { status: next, note: '' };
               if (window.soundEngine && typeof window.soundEngine.playTick === 'function') {
                 window.soundEngine.playTick();
               }
-              saveAttendance('attendance');
+              saveAttendance();
               render();
             });
           });
-        };
 
-        // 雙向即時連動監聽：座位表變更出勤時，點名簿自動即時重繪
-        const onAttendanceUpdated = (e) => {
-          if (e.detail && e.detail.source !== 'attendance') {
-            attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
-            render();
-          }
+          updateAttScale();
         };
-        window.addEventListener('attendanceUpdated', onAttendanceUpdated);
-
-        const onRosterUpdated = (e) => {
-          if (e.detail && Array.isArray(e.detail)) {
-            roster = [...e.detail];
-            try {
-              const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
-              if (classData && classData.activeId) activeClass = classData.activeId;
-            } catch(err){}
-            attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
-            render();
-          }
-        };
-        window.addEventListener('rosterUpdated', onRosterUpdated);
 
         datePicker.addEventListener('change', (e) => {
-          currentDate = e.target.value || todayStr;
-          localStorage.setItem('puti_active_att_date', currentDate);
+          currentDate = e.target.value;
           attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
+          saveAttendance();
           render();
-          window.dispatchEvent(new CustomEvent('attendanceUpdated', {
-            detail: { classId: activeClass, date: currentDate, data: attendanceData, source: 'dateChange' }
-          }));
         });
 
         allPresentBtn.addEventListener('click', () => {
@@ -4822,7 +4823,7 @@ const ClassroomWidgets = {
             if (typeof window.soundEngine.playCoin === 'function') window.soundEngine.playCoin();
             else if (typeof window.soundEngine.playChime === 'function') window.soundEngine.playChime();
           }
-          saveAttendance('attendance');
+          saveAttendance();
           render();
         });
 
@@ -4840,19 +4841,19 @@ const ClassroomWidgets = {
             else if (st === 'absent') absent.push(name);
           });
 
-          let text = `【今日課堂出勤通報】📅 ${currentDate}\n`;
+          let text = `【今日課堂出勤通報】${currentDate}\n`;
           text += `應到：${roster.length} 人 / 實到：${presentCount} 人\n`;
           if (late.length > 0) text += `⏰ 遲到：${late.join('、')}\n`;
           if (sick.length > 0) text += `🏥 病假：${sick.join('、')}\n`;
           if (personal.length > 0) text += `📋 事假：${personal.join('、')}\n`;
           if (official.length > 0) text += `🎖️ 公假：${official.join('、')}\n`;
-          if (absent.length > 0) text += `❌ 缺席：${absent.join('、')}\n`;
+          if (absent.length > 0) text += `⚠️ 缺席：${absent.join('、')}\n`;
           if (late.length === 0 && sick.length === 0 && personal.length === 0 && official.length === 0 && absent.length === 0) {
-            text += `🎉 全員到齊，精神奕奕！\n`;
+            text += `✨ 全班到齊，表現優良！\n`;
           }
 
           navigator.clipboard.writeText(text).then(() => {
-            alert('📋 今日出勤通報已複製至剪貼簿！可直接貼至 LINE。\n\n' + text);
+            alert('📋 今日出勤通報已複製到剪貼簿，可直接貼至 LINE！\n\n' + text);
           }).catch(() => {
             prompt('請手動複製出勤通報：', text);
           });
@@ -4864,6 +4865,9 @@ const ClassroomWidgets = {
         });
 
         render();
+      },
+      onClose: () => {
+        if (resizeObserver) resizeObserver.disconnect();
       }
     });
   },
@@ -5110,8 +5114,8 @@ const ClassroomWidgets = {
     });
   },
 
-  // =========================================================================
-  // 智慧座位出勤表 (Smart Seating & Attendance Map) - 支援拖曳對調、點選對調與出勤聯動
+    // =========================================================================
+  // 班級座位表 (Classroom Seating Chart) - 純排座功能、拖曳放大動態字級
   // =========================================================================
   spawnSeatingChart(wm) {
     let roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
@@ -5131,46 +5135,24 @@ const ClassroomWidgets = {
       while (seatLayout.length < totalDesks) seatLayout.push('');
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const getActiveDate = () => localStorage.getItem('puti_active_att_date') || todayStr;
-    const getAttKey = () => `puti_att_${activeClass}_${getActiveDate()}`;
-
-    const statusBadgeMap = {
-      present:  { label: '到', bg: '#22C55E', color: '#FFF', cardBg: '#F0FDF4', border: '#86EFAC' },
-      late:     { label: '遲', bg: '#EAB308', color: '#FFF', cardBg: '#FEFCE8', border: '#FDE047' },
-      sick:     { label: '病', bg: '#3B82F6', color: '#FFF', cardBg: '#EFF6FF', border: '#93C5FD' },
-      personal: { label: '事', bg: '#F97316', color: '#FFF', cardBg: '#FFF7ED', border: '#FDBA74' },
-      official: { label: '公', bg: '#A855F7', color: '#FFF', cardBg: '#FAF5FF', border: '#D8B4FE' },
-      absent:   { label: '缺', bg: '#EF4444', color: '#FFF', cardBg: '#FEF2F2', border: '#FCA5A5' }
-    };
-
-    const nextStatusMap = {
-      present: 'late',
-      late: 'sick',
-      sick: 'personal',
-      personal: 'official',
-      official: 'absent',
-      absent: 'present'
-    };
-
     const saveSeats = () => {
       localStorage.setItem(getSeatKey(), JSON.stringify(seatLayout));
     };
 
-    let selectedSwapIdx = null; // 點選互換狀態
-    let draggedIdx = null;       // 拖曳互換狀態
+    let selectedSwapIdx = null; // 點選對調來源
+    let draggedIdx = null;       // 拖曳對調來源
 
     const content = `
-      <div style="display: flex; flex-direction: column; height: 100%; gap: 8px; user-select: none;">
+      <div class="seating-container" style="display: flex; flex-direction: column; height: 100%; gap: 8px; user-select: none;">
         <!-- Top Control Bar -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: #F1F5F9; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #CBD5E1; flex-wrap: wrap; gap: 6px;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-weight: 800; font-size: 0.84rem; color: #334155;">
-              <i class="fa-solid fa-chalkboard-user"></i> 講台 / 黑板前排方向
+              <i class="fa-solid fa-chalkboard-user"></i> 講台 / 黑板方向
             </span>
             <div style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 800; color: #475569;">
-              <span>排數:</span>
-              <select id="seat-cols-select" style="border: 1px solid #CBD5E1; border-radius: 6px; padding: 1px 4px; font-weight: 800; background: #FFF;">
+              <span>欄數:</span>
+              <select id="seat-cols-select" style="border: 1px solid #CBD5E1; border-radius: 6px; padding: 1px 4px; font-weight: 800; background: #FFF; cursor: pointer;">
                 <option value="5" ${numCols === 5 ? 'selected' : ''}>5 欄</option>
                 <option value="6" ${numCols === 6 ? 'selected' : ''}>6 欄</option>
                 <option value="7" ${numCols === 7 ? 'selected' : ''}>7 欄</option>
@@ -5178,17 +5160,17 @@ const ClassroomWidgets = {
             </div>
           </div>
           <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-            <button type="button" class="action-btn-secondary" id="seat-tap-swap-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="大觸控螢幕友善：點擊兩位同學即可直接互換位置">
-              <i class="fa-solid fa-arrow-right-arrow-left"></i> 點選互換
+            <button type="button" class="action-btn-secondary" id="seat-tap-swap-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="大螢幕觸控推薦：點擊兩位同學可直接對調位置">
+              <i class="fa-solid fa-arrow-right-arrow-left"></i> 點選對調
             </button>
-            <button type="button" class="action-btn-secondary" id="seat-shuffle-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="隨機洗牌座位">
+            <button type="button" class="action-btn-secondary" id="seat-shuffle-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="全班隨機排座">
               <i class="fa-solid fa-shuffle"></i> 隨機排座
             </button>
-            <button type="button" class="action-btn-secondary" id="seat-invert-rows-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="前後排座位對調">
+            <button type="button" class="action-btn-secondary" id="seat-invert-rows-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="前後排整班垂直對調">
               <i class="fa-solid fa-up-down"></i> 前後對調
             </button>
-            <button type="button" class="action-btn-secondary" id="seat-reset-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="依座號順序重排">
-              <i class="fa-solid fa-arrow-rotate-left"></i> 座號序
+            <button type="button" class="action-btn-secondary" id="seat-reset-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="依座號順序排列">
+              <i class="fa-solid fa-arrow-rotate-left"></i> 依號排列
             </button>
           </div>
         </div>
@@ -5199,14 +5181,16 @@ const ClassroomWidgets = {
 
         <!-- Helper Instructions -->
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: #64748B; background: #F8FAFC; padding: 3px 8px; border-radius: 8px;">
-          <span>🖐️ 支援【按住卡片拖曳放開對調】或點擊【點選互換】</span>
-          <span>🟢 點擊右上角圓形燈號，立即同步更新出勤狀態</span>
+          <span>💡 支援按住卡片「拖曳對調」位置；電子白板亦可按「點選對調」依序點兩張桌子互換。</span>
+          <span>🪑 視窗支援拖曳右下角縮放，桌卡與姓名會自動等比放大！</span>
         </div>
       </div>
     `;
 
+    let resizeObserver = null;
+
     wm.createWindow({
-      title: '智慧座位出勤表',
+      title: '班級座位表',
       icon: 'fa-border-all',
       width: 640,
       height: 520,
@@ -5222,6 +5206,29 @@ const ClassroomWidgets = {
 
         let isTapSwapMode = false;
 
+        // Dynamic Resize Scaling for Seating Chart
+        const updateSeatScale = () => {
+          const width = el.offsetWidth;
+          const height = el.offsetHeight;
+          const scale = Math.max(0.8, Math.min(2.5, Math.min(width / 600, height / 460)));
+          const nameFontSize = (0.88 * scale).toFixed(2) + 'rem';
+          const numFontSize = (0.72 * scale).toFixed(2) + 'rem';
+          const deskMinH = Math.round(56 * scale) + 'px';
+          const gapSize = Math.round(6 * scale) + 'px';
+
+          grid.style.gap = gapSize;
+          grid.querySelectorAll('.seat-desk-cell').forEach(c => {
+            c.style.minHeight = deskMinH;
+            const nameEl = c.querySelector('.seat-student-name');
+            if (nameEl) nameEl.style.fontSize = nameFontSize;
+            const numEl = c.querySelector('.seat-num-tag');
+            if (numEl) numEl.style.fontSize = numFontSize;
+          });
+        };
+
+        resizeObserver = new ResizeObserver(() => updateSeatScale());
+        resizeObserver.observe(el);
+
         const swapSeats = (fromIdx, toIdx) => {
           if (fromIdx === toIdx || fromIdx === null || toIdx === null) return;
           const temp = seatLayout[fromIdx];
@@ -5235,41 +5242,32 @@ const ClassroomWidgets = {
         };
 
         const renderGrid = () => {
-          const attData = JSON.parse(localStorage.getItem(getAttKey()) || '{}');
-
           grid.style.gridTemplateColumns = `repeat(${numCols}, 1fr)`;
 
           grid.innerHTML = seatLayout.map((name, idx) => {
-            const isSelected = isTapSwapMode && selectedSwapIdx === idx;
-
+            const isSelected = selectedSwapIdx === idx;
             if (!name) {
               return `
-                <div class="seat-desk-cell empty ${isSelected ? 'swap-target' : ''}" data-idx="${idx}" draggable="true"
-                  style="background: #F8FAFC; border: 2px dashed ${isSelected ? '#2563EB' : '#CBD5E1'}; border-radius: 10px; padding: 8px 2px; text-align: center; color: #94A3B8; font-size: 0.76rem; min-height: 60px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;">
-                  <span style="opacity: 0.6;">(空位)</span>
+                <div class="seat-desk-cell empty ${isSelected ? 'swap-selected' : ''}" data-idx="${idx}" data-name=""
+                  style="background: #F8FAFC; border: 2px dashed ${isSelected ? '#2563EB' : '#CBD5E1'}; border-radius: 12px; padding: 6px 4px; text-align: center; color: #94A3B8; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; position: relative;">
+                  <span class="seat-num-tag" style="position: absolute; top: 3px; left: 6px; font-size: 0.7rem; font-weight: 800; color: #CBD5E1;">${idx + 1}</span>
+                  <span class="seat-student-name" style="font-size: 0.8rem; opacity: 0.6;">(空桌)</span>
                 </div>
               `;
             }
 
-            const att = attData[name] || { status: 'present' };
-            const conf = statusBadgeMap[att.status] || statusBadgeMap.present;
-
             return `
               <div class="seat-desk-cell occupied ${isSelected ? 'swap-selected' : ''}" data-idx="${idx}" data-name="${name}" draggable="true"
-                style="background: ${conf.cardBg}; border: 2px solid ${isSelected ? '#2563EB' : conf.border}; border-radius: 10px; padding: 6px 4px; text-align: center; cursor: grab; transition: transform 0.1s, box-shadow 0.1s; position: relative; min-height: 60px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <div style="font-size: 0.82rem; font-weight: 800; color: #1E293B; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                style="background: #FFFFFF; border: 2px solid ${isSelected ? '#2563EB' : '#CBD5E1'}; border-radius: 12px; padding: 6px 4px; text-align: center; cursor: grab; transition: transform 0.1s, box-shadow 0.1s; position: relative; min-height: 56px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">
+                <span class="seat-num-tag" style="position: absolute; top: 3px; left: 6px; font-size: 0.7rem; font-weight: 800; color: #94A3B8;">${idx + 1}</span>
+                <div class="seat-student-name" style="font-size: 0.88rem; font-weight: 800; color: #1E293B; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                   ${name}
                 </div>
-                <!-- Interactive Attendance Badge -->
-                <button type="button" class="seat-att-badge-btn" data-name="${name}" title="點擊切換出勤狀態（目前：${conf.label}）"
-                  style="position: absolute; top: 3px; right: 3px; font-size: 0.68rem; font-weight: 900; background: ${conf.bg}; color: ${conf.color}; width: 18px; height: 18px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; box-shadow: 0 1px 2px rgba(0,0,0,0.15);">
-                  ${conf.label}
-                </button>
               </div>
             `;
           }).join('');
 
-          // 綁定卡片拖曳與點選對調事件
+          // 綁定拖曳與對調事件
           grid.querySelectorAll('.seat-desk-cell').forEach(cell => {
             const idx = parseInt(cell.getAttribute('data-idx'), 10);
 
@@ -5306,10 +5304,8 @@ const ClassroomWidgets = {
               draggedIdx = null;
             });
 
-            // Click: Swap mode vs Card selection
-            cell.addEventListener('click', (e) => {
-              if (e.target.closest('.seat-att-badge-btn')) return; // 點擊燈號則不觸發換位
-
+            // Click: Tap-to-Swap Mode
+            cell.addEventListener('click', () => {
               if (isTapSwapMode) {
                 if (selectedSwapIdx === null) {
                   selectedSwapIdx = idx;
@@ -5325,65 +5321,22 @@ const ClassroomWidgets = {
             });
           });
 
-          // 綁定座位上的出勤燈號點擊事件（循環切換並同步廣播）
-          grid.querySelectorAll('.seat-att-badge-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              const name = btn.getAttribute('data-name');
-              const curDate = getActiveDate();
-              const curAttData = JSON.parse(localStorage.getItem(getAttKey()) || '{}');
-
-              const curStatus = (curAttData[name] && curAttData[name].status) || 'present';
-              const nextStatus = nextStatusMap[curStatus] || 'present';
-
-              curAttData[name] = { status: nextStatus, note: (curAttData[name] && curAttData[name].note) || '' };
-              localStorage.setItem(getAttKey(), JSON.stringify(curAttData));
-
-              if (window.soundEngine && typeof window.soundEngine.playTick === 'function') {
-                window.soundEngine.playTick();
-              }
-
-              // 雙向即時廣播，通知點名簿同步更新
-              window.dispatchEvent(new CustomEvent('attendanceUpdated', {
-                detail: { classId: activeClass, date: curDate, data: curAttData, source: 'seating' }
-              }));
-
-              renderGrid();
-            });
-          });
+          updateSeatScale();
         };
 
-        // 監聽點名簿即時更新
-        const onAttendanceUpdated = () => {
-          renderGrid();
-        };
-        window.addEventListener('attendanceUpdated', onAttendanceUpdated);
-
-        // 監聽班級名冊更新
-        const onRosterUpdated = (e) => {
-          if (e.detail && Array.isArray(e.detail)) {
-            roster = [...e.detail];
-            try {
-              const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
-              if (classData && classData.activeId) activeClass = classData.activeId;
-            } catch(err){}
-            seatLayout = [...roster];
-            while (seatLayout.length < totalDesks) seatLayout.push('');
-            saveSeats();
-            renderGrid();
-          }
-        };
-        window.addEventListener('rosterUpdated', onRosterUpdated);
-
-        // 點選互換模式切換按鈕
+        // 點選對調模式開關
         tapSwapBtn.addEventListener('click', () => {
           isTapSwapMode = !isTapSwapMode;
           selectedSwapIdx = null;
-          tapSwapBtn.style.background = isTapSwapMode ? '#EFF6FF' : '';
-          tapSwapBtn.style.color = isTapSwapMode ? '#1D4ED8' : '';
-          tapSwapBtn.style.fontWeight = isTapSwapMode ? '900' : '';
-          tapSwapBtn.style.borderColor = isTapSwapMode ? '#3B82F6' : '';
-          tapSwapBtn.innerHTML = isTapSwapMode ? '<i class="fa-solid fa-hand-pointer"></i> 點選互換中...' : '<i class="fa-solid fa-arrow-right-arrow-left"></i> 點選互換';
+          if (isTapSwapMode) {
+            tapSwapBtn.style.background = '#2563EB';
+            tapSwapBtn.style.color = '#FFF';
+            tapSwapBtn.innerHTML = '<i class="fa-solid fa-hand-pointer"></i> 對調中(點2桌)';
+          } else {
+            tapSwapBtn.style.background = '';
+            tapSwapBtn.style.color = '';
+            tapSwapBtn.innerHTML = '<i class="fa-solid fa-arrow-right-arrow-left"></i> 點選對調';
+          }
           renderGrid();
         });
 
@@ -5396,31 +5349,33 @@ const ClassroomWidgets = {
 
         // 隨機排座
         shuffleBtn.addEventListener('click', () => {
-          seatLayout = [...seatLayout].sort(() => Math.random() - 0.5);
-          if (typeof confetti === 'function') confetti({ particleCount: 40, spread: 50 });
+          if (!confirm('確定要打散全班座位並隨機排座嗎？')) return;
+          for (let i = seatLayout.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [seatLayout[i], seatLayout[j]] = [seatLayout[j], seatLayout[i]];
+          }
+          saveSeats();
           if (window.soundEngine && typeof window.soundEngine.playFanfare === 'function') {
             window.soundEngine.playFanfare();
           }
-          saveSeats();
           renderGrid();
         });
 
-        // 前後對調 (每一欄的前後顛倒)
+        // 前後對調
         invertBtn.addEventListener('click', () => {
           const rows = Math.ceil(totalDesks / numCols);
-          const newGrid = [...seatLayout];
-          for (let col = 0; col < numCols; col++) {
-            for (let r = 0; r < Math.floor(rows / 2); r++) {
-              const topIdx = r * numCols + col;
-              const botIdx = (rows - 1 - r) * numCols + col;
-              if (topIdx < totalDesks && botIdx < totalDesks) {
-                const temp = newGrid[topIdx];
-                newGrid[topIdx] = newGrid[botIdx];
-                newGrid[botIdx] = temp;
+          const newLayout = new Array(totalDesks).fill('');
+          for (let r = 0; r < rows; r++) {
+            const targetRow = rows - 1 - r;
+            for (let c = 0; c < numCols; c++) {
+              const srcIdx = r * numCols + c;
+              const dstIdx = targetRow * numCols + c;
+              if (srcIdx < totalDesks && dstIdx < totalDesks) {
+                newLayout[dstIdx] = seatLayout[srcIdx];
               }
             }
           }
-          seatLayout = newGrid;
+          seatLayout = newLayout;
           saveSeats();
           if (window.soundEngine && typeof window.soundEngine.playPop === 'function') {
             window.soundEngine.playPop();
@@ -5428,7 +5383,7 @@ const ClassroomWidgets = {
           renderGrid();
         });
 
-        // 依座號順序
+        // 依座號順序排列
         resetBtn.addEventListener('click', () => {
           seatLayout = [...roster];
           while (seatLayout.length < totalDesks) seatLayout.push('');
@@ -5440,6 +5395,9 @@ const ClassroomWidgets = {
         });
 
         renderGrid();
+      },
+      onClose: () => {
+        if (resizeObserver) resizeObserver.disconnect();
       }
     });
   }
