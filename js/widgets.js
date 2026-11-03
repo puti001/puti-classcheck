@@ -154,7 +154,8 @@ const ClassroomWidgets = {
   // Registry metadata for the "More Tools" drawer/modal
   registry: [
     { id: 'attendance', category: 'admin', name: '課堂點名簿', icon: 'fa-user-check', color: '#10B981', desc: '全班出勤點名、一鍵全到復原、假別標記、複製LINE出勤日報' },
-    { id: 'homework-check', category: 'admin', name: '作業收發通', icon: 'fa-box-archive', color: '#F59E0B', desc: '各科作業繳交點收、一鍵全收復原、進度百分比、複製未交催繳清單' },
+    { id: 'homework-check', category: 'admin', name: '作業收發通', icon: 'fa-box-archive', color: '#F59E0B', desc: '實體紙本作業點收、一鍵全收、進度百分比、複製未交催繳清單' },
+    { id: 'online-homework', category: 'admin', name: '線上作業', icon: 'fa-cloud-arrow-up', color: '#6366F1', desc: '學生平板拍照上傳、大螢幕並排檢討、紅筆批改印章與AI助教預審' },
     { id: 'seating', category: 'admin', name: '班級座位表', icon: 'fa-border-all', color: '#3B82F6', desc: '班級座位排定、支援拖曳對調、點選對調、欄數切換與前後翻轉，支援拖曳縮放' },
     { id: 'contact', category: 'admin', name: '家庭聯絡簿', icon: 'fa-book-open-reader', color: '#3A86FF', desc: '每日各科作業清單、自訂快捷標籤、字級放大、一鍵複製LINE格式' },
     { id: 'timetable', category: 'admin', name: '班級功課表', icon: 'fa-calendar-week', color: '#8B5CF6', desc: '週一至週五課堂科目表、當日課程自動高亮、課前預備提醒' },
@@ -5211,11 +5212,7 @@ const ClassroomWidgets = {
     });
   },
 
-    // 作業收發通 (Homework Check & Collection Manager) - 4 個進階層次旗艦版
-  // Level 1: 學生平板掃碼免登入上傳 (照片/打字) + 即時連動
-  // Level 2: 課堂大螢幕單人放大檢閱 + 雙人/四人並排對比檢討
-  // Level 3: 電子白板線上紅筆批改 + 5大教育印章 + 評語回饋
-  // Level 4: AI 助教預審 (Gemini 2.5/2.0/1.5 動態最高版本 + Groq 雙保險)
+    // 作業收發通 (Homework Check & Collection Manager) - 純紙本實體作業收發
   // =========================================================================
   spawnHomeworkCheck(wm, initialOptions = {}) {
     const getActiveData = () => {
@@ -5245,7 +5242,6 @@ const ClassroomWidgets = {
 
     const getHwStorageKey = (d) => `puti_hw_check_${activeClass}_${d}`;
     const getContactStorageKey = (d) => `puti_contact_${activeClass}_${d}`;
-    const getSubStorageKey = (d) => `puti_hw_sub_${activeClass}_${d}`;
 
     // 檢查現有已開啟的作業收發視窗
     let existingWin = null;
@@ -5261,7 +5257,6 @@ const ClassroomWidgets = {
       return existingWin;
     }
 
-    // 讀取當日作業資料
     const loadHwDataForDate = (d) => {
       let data = null;
       try {
@@ -5333,131 +5328,9 @@ const ClassroomWidgets = {
       localStorage.setItem('puti_active_hw_date', currentDate);
     };
 
-    // 讀取學生實際提交內容 (文字/圖片/批改狀態)
-    const loadSubmissions = () => {
-      try {
-        return JSON.parse(localStorage.getItem(getSubStorageKey(currentDate)) || '{}');
-      } catch(e) {
-        return {};
-      }
-    };
-
-    const saveSubmissions = (subData) => {
-      localStorage.setItem(getSubStorageKey(currentDate), JSON.stringify(subData));
-    };
-
-    // ==========================================
-    // AI 助教審查核心 (Gemini 2.5/2.0/1.5 + Groq 雙保險)
-    // ==========================================
-    const callAIAssistant = async ({ text, imageBase64, subject, studentName }) => {
-      const geminiKey = (localStorage.getItem('puti_gemini_api_key') || '').trim();
-      const groqKey = (localStorage.getItem('puti_groq_api_key') || '').trim();
-
-      if (!geminiKey && !groqKey) {
-        throw new Error('請先至【⚙️ 設定】填入 Google Gemini 或 Groq API Key！');
-      }
-
-      const systemPrompt = `你是一位富有愛心、細心專業的國小資深導師。請審核學生【${studentName}】繳交的國小【${subject}】作業。
-請直接以繁體中文、清晰條列回覆：
-【1. 完整度判定】：(已全數完成 / 局部未寫 / 格式不符)
-【2. 糾錯與指引】：(若為生字/作文，挑出錯別字與修辭瑕疵；若為數學，檢查計算算式；若全對請給予高度肯定)
-【3. 教師溫暖評語建議】：(一句生動、鼓勵且溫暖的短評語，適合寫在聯絡簿或直接給學生)`;
-
-      // 1. 動態偵測 Gemini 最高可用版本
-      let highestGeminiModel = 'gemini-1.5-flash';
-      if (geminiKey) {
-        try {
-          const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`);
-          if (listRes.ok) {
-            const listData = await listRes.json();
-            const available = (listData.models || []).map(m => m.name.replace('models/', ''));
-            const candidates = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-flash'];
-            for (const cand of candidates) {
-              if (available.includes(cand)) {
-                highestGeminiModel = cand;
-                break;
-              }
-            }
-          }
-        } catch(e) {
-          console.warn('動態偵測 Gemini 模型出錯，退回預設', e);
-        }
-
-        // 呼叫 Gemini
-        try {
-          const contents = [{ role: 'user', parts: [] }];
-          contents[0].parts.push({ text: `${systemPrompt}\n\n學生文字內容：\n${text || '（無純文字，請詳閱所附作業照片）'}` });
-          if (imageBase64) {
-            const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-            contents[0].parts.push({
-              inline_data: { mime_type: 'image/jpeg', data: cleanBase64 }
-            });
-          }
-
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${highestGeminiModel}:generateContent?key=${geminiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents })
-          });
-
-          if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(`Gemini API HTTP ${res.status}: ${errText}`);
-          }
-
-          const resData = await res.json();
-          const reply = resData.candidates[0].content.parts[0].text;
-          return {
-            provider: `Google Gemini (${highestGeminiModel})`,
-            content: reply
-          };
-        } catch(geminiErr) {
-          console.warn(`Gemini (${highestGeminiModel}) 失敗，啟動 Groq 雙保險備援:`, geminiErr);
-          if (!groqKey) throw geminiErr;
-        }
-      }
-
-      // 2. Groq 雙保險備援
-      if (groqKey) {
-        const groqModel = imageBase64 ? 'llama-3.2-11b-vision-preview' : 'llama-3.3-70b-versatile';
-        const messages = [
-          { role: 'system', content: systemPrompt },
-          {
-            role: 'user',
-            content: imageBase64 ? [
-              { type: 'text', text: `學生文字: ${text || '（請詳閱照片）'}` },
-              { type: 'image_url', image_url: { url: imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}` } }
-            ] : `學生文字: ${text}`
-          }
-        ];
-
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${groqKey}`
-          },
-          body: JSON.stringify({ model: groqModel, messages, temperature: 0.3 })
-        });
-
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`Groq API HTTP ${res.status}: ${errText}`);
-        }
-
-        const data = await res.json();
-        return {
-          provider: `⚡ Groq 雙保險備援 (${groqModel})`,
-          content: data.choices[0].message.content
-        };
-      }
-
-      throw new Error('雙通道 API 呼叫均未完成。');
-    };
-
     const content = `
       <div class="homework-check-container" style="display: flex; flex-direction: column; height: 100%; gap: 8px; user-select: none;">
-        <!-- Top Toolbar: Date, Contact Link Selection & Action Buttons -->
+        <!-- Top Toolbar: Date & Contact Link Selection -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #E2E8F0; gap: 6px; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <label style="font-size: 0.8rem; font-weight: 800; color: #475569;"><i class="fa-solid fa-calendar-day"></i> 登記日期:</label>
@@ -5467,28 +5340,12 @@ const ClassroomWidgets = {
               <option value="">📖 載入聯絡簿作業...</option>
             </select>
           </div>
-          <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
-            <!-- Level 1: 學生平板掃碼上傳 QR Code -->
-            <button type="button" class="action-btn-main" id="hw-student-qr-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem; background: linear-gradient(135deg, #3B82F6, #1D4ED8);" title="顯示學生上傳 QR Code，供全班平板掃碼繳交">
-              <i class="fa-solid fa-qrcode"></i> 學生上傳
-            </button>
-
-            <!-- Level 2: 課堂對比檢討模式 -->
-            <button type="button" class="action-btn-secondary" id="hw-compare-mode-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem; color: #8B5CF6; border-color: #C4B5FD; font-weight: 800;" title="勾選 2~4 位學生進行大螢幕並排檢討對比">
-              <i class="fa-solid fa-columns"></i> 課堂對比
-            </button>
-
-            <!-- Level 4: AI 助教與雲端設定 -->
-            <button type="button" class="action-btn-secondary" id="hw-ai-settings-btn" style="height: 26px; padding: 0 7px; font-size: 0.74rem; color: #D97706;" title="設定 Gemini / Groq API Key 與 Google Apps Script 雲端儲存網址">
-              <i class="fa-solid fa-wand-magic-sparkles"></i> AI/雲端
-            </button>
-
-            <!-- 名冊管理 -->
+          <div style="display: flex; gap: 5px; align-items: center;">
             <button type="button" class="action-btn-secondary" id="hw-roster-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="查看與編輯學生名冊（與點名簿同步）">
               <i class="fa-solid fa-users"></i> 名冊 (${roster.length})
             </button>
             <button type="button" class="action-btn-secondary" id="hw-add-subject-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem; border-style: dashed;" title="自訂新增作業項目">
-              <i class="fa-solid fa-plus"></i> 新增
+              <i class="fa-solid fa-plus"></i> 新增項目
             </button>
             <button type="button" class="action-btn-secondary" id="hw-del-subject-btn" style="height: 26px; padding: 0 6px; font-size: 0.74rem; color: #EF4444;" title="刪除此作業項目">
               <i class="fa-solid fa-trash"></i>
@@ -5523,40 +5380,26 @@ const ClassroomWidgets = {
           </div>
         </div>
 
-        <!-- 对比模式操作指示条 (預設隱藏) -->
-        <div id="hw-compare-bar" style="display: none; justify-content: space-between; align-items: center; background: #F3E8FF; padding: 6px 10px; border-radius: 10px; border: 1.5px solid #D8B4FE; color: #6B21A8; font-weight: 800; font-size: 0.82rem;">
-          <span>👉 課堂對比模式：請勾選 2 位或 4 位學生進行並排檢討（已勾選：<span id="hw-compare-count" style="color: #9333EA;">0</span> 人）</span>
-          <div style="display: flex; gap: 6px;">
-            <button type="button" id="hw-do-compare-btn" style="height: 26px; padding: 0 10px; font-size: 0.76rem; border-radius: 6px; background: #8B5CF6; color: #FFF; border: none; font-weight: 800; cursor: pointer;">
-              <i class="fa-solid fa-play"></i> 開始並排檢討
-            </button>
-            <button type="button" id="hw-exit-compare-btn" style="height: 26px; padding: 0 8px; font-size: 0.76rem; border-radius: 6px; background: #FFF; color: #6B21A8; border: 1px solid #D8B4FE; font-weight: 800; cursor: pointer;">
-              退出
-            </button>
-          </div>
-        </div>
-
         <!-- Students Check Grid -->
         <div id="hw-students-grid" style="flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 2px; overflow-y: auto;">
         </div>
 
         <!-- Bottom Guidance -->
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: #64748B; background: #F8FAFC; padding: 3px 8px; border-radius: 8px;">
-          <span>💡 點擊卡片左側切換【已繳/未交】；點擊右側【🔍 檢視】開啟大螢幕紅筆批改、教育印章與 AI 助教預審。</span>
-          <span>📱 支援學生平板掃碼拍照上傳</span>
+          <span>💡 點擊學生卡片切換【已繳 / 未交】；上方切換日期可調閱任一天的聯絡簿作業繳交紀錄。</span>
+          <span>📦 支援拖曳右下角縮放，卡片等比放大</span>
         </div>
       </div>
     `;
 
     let resizeObserver = null;
     let onRosterUpdated = null;
-    let bc = null;
 
     const winObj = wm.createWindow({
-      title: '作業收發通 (智慧收發 ╳ 紅筆批改 ╳ AI助教)',
+      title: '作業收發通 (紙本作業)',
       icon: 'fa-box-archive',
-      width: 640,
-      height: 540,
+      width: 620,
+      height: 520,
       type: 'homework-check',
       contentHtml: content,
       onInit: (el, winInstance) => {
@@ -5569,19 +5412,9 @@ const ClassroomWidgets = {
         const allCheckBtn = el.querySelector('#hw-all-check-btn');
         const copyMissingBtn = el.querySelector('#hw-copy-missing-btn');
         const rosterBtn = el.querySelector('#hw-roster-btn');
-        const studentQrBtn = el.querySelector('#hw-student-qr-btn');
-        const compareModeBtn = el.querySelector('#hw-compare-mode-btn');
-        const aiSettingsBtn = el.querySelector('#hw-ai-settings-btn');
-        const compareBar = el.querySelector('#hw-compare-bar');
-        const compareCountEl = el.querySelector('#hw-compare-count');
-        const doCompareBtn = el.querySelector('#hw-do-compare-btn');
-        const exitCompareBtn = el.querySelector('#hw-exit-compare-btn');
         const titleSpan = el.querySelector('#hw-stat-subject-title');
         const progressText = el.querySelector('#hw-stat-progress-text');
         const progressBar = el.querySelector('#hw-stat-progress-bar');
-
-        let isCompareMode = false;
-        let selectedForCompare = [];
 
         // Dynamic Resize Scaling for Homework Check
         const updateHwScale = () => {
@@ -5676,8 +5509,6 @@ const ClassroomWidgets = {
 
           const sub = hwData.activeSubject;
           const rec = hwData.records[sub];
-          const allSubs = loadSubmissions();
-          const curSubMap = allSubs[sub] || {};
           let doneCount = 0;
 
           if (rosterBtn) {
@@ -5687,42 +5518,13 @@ const ClassroomWidgets = {
           grid.innerHTML = roster.map(name => {
             const isDone = !!rec[name];
             if (isDone) doneCount++;
-            const subDetail = curSubMap[name];
-            const hasUpload = !!subDetail;
-            const hasCorrected = subDetail && (subDetail.feedback || subDetail.correctedImage);
-            const isCompared = selectedForCompare.includes(name);
 
             return `
-              <div class="hw-check-card ${isCompared ? 'compared-selected' : ''}" data-name="${name}"
-                style="background: ${isDone ? '#DCFCE7' : '#FFF1F2'}; border: 1.5px solid ${isCompared ? '#8B5CF6' : (isDone ? '#86EFAC' : '#FECDD3')}; border-radius: 12px; padding: 5px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 2px; min-height: 56px; position: relative;">
-
-                <!-- 對比模式勾選框 -->
-                ${isCompareMode ? `
-                  <div style="position: absolute; top: 4px; left: 4px; z-index: 2;">
-                    <input type="checkbox" class="compare-chk" data-name="${name}" ${isCompared ? 'checked' : ''} style="transform: scale(1.1); cursor: pointer;">
-                  </div>
-                ` : ''}
-
-                <!-- 上傳徽章標示 -->
-                ${hasUpload ? `
-                  <span style="position: absolute; top: 3px; right: 4px; font-size: 0.62rem; font-weight: 800; background: ${hasCorrected ? '#FEF08A' : '#DBEAFE'}; color: ${hasCorrected ? '#854D0E' : '#1E40AF'}; padding: 1px 4px; border-radius: 4px;">
-                    ${hasCorrected ? '💮 已批改' : (subDetail.type === 'photo' ? '📷 照片' : '✍️ 打字')}
-                  </span>
-                ` : ''}
-
-                <div class="hw-student-name" style="font-size: 0.86rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%; margin-top: 1px;">
-                  ${name}
-                </div>
-
-                <div style="display: flex; gap: 4px; align-items: center; width: 100%; justify-content: center;">
-                  <span class="hw-status-badge toggle-done-btn" data-name="${name}" style="font-size: 0.72rem; font-weight: 900; background: ${isDone ? '#10B981' : '#F43F5E'}; color: #FFF; padding: 2px 7px; border-radius: 999px; line-height: 1.2;">
-                    ${isDone ? '✓ 已繳' : '✕ 未交'}
-                  </span>
-                  <button type="button" class="hw-review-btn" data-name="${name}" title="開啟作業檢視、Canvas紅筆批改與AI助教預審"
-                    style="border: none; background: ${hasUpload ? '#3B82F6' : '#94A3B8'}; color: #FFF; border-radius: 6px; padding: 2px 5px; font-size: 0.66rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 2px;">
-                    <i class="fa-solid fa-magnifying-glass"></i> 檢閱
-                  </button>
-                </div>
+              <div class="hw-check-card" data-name="${name}" style="background: ${isDone ? '#DCFCE7' : '#FFF1F2'}; border: 1.5px solid ${isDone ? '#86EFAC' : '#FECDD3'}; border-radius: 12px; padding: 6px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 54px;">
+                <div class="hw-student-name" style="font-size: 0.86rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%;">${name}</div>
+                <span class="hw-status-badge" style="font-size: 0.72rem; font-weight: 900; background: ${isDone ? '#10B981' : '#F43F5E'}; color: #FFF; padding: 2px 8px; border-radius: 999px; line-height: 1.2;">
+                  ${isDone ? '✓ 已繳' : '✕ 未交'}
+                </span>
               </div>
             `;
           }).join('');
@@ -5733,24 +5535,9 @@ const ClassroomWidgets = {
           progressText.textContent = `已收 ${doneCount} / ${total} 人 (${pct}%)`;
           progressBar.style.width = `${pct}%`;
 
-          // 綁定卡片點擊切換繳交狀態
           grid.querySelectorAll('.hw-check-card').forEach(card => {
-            const name = card.getAttribute('data-name');
-
-            card.addEventListener('click', (e) => {
-              if (e.target.closest('.hw-review-btn') || e.target.closest('.compare-chk')) return;
-
-              if (isCompareMode) {
-                // 對比模式下點擊為勾選
-                const chk = card.querySelector('.compare-chk');
-                if (chk) {
-                  chk.checked = !chk.checked;
-                  chk.dispatchEvent(new Event('change'));
-                }
-                return;
-              }
-
-              // 一般模式下切換已繳/未交
+            card.addEventListener('click', () => {
+              const name = card.getAttribute('data-name');
               ensureActiveSubject();
               rec[name] = !rec[name];
               if (window.soundEngine && typeof window.soundEngine.playTick === 'function') {
@@ -5761,599 +5548,10 @@ const ClassroomWidgets = {
             });
           });
 
-          // 綁定檢閱/批改按鈕
-          grid.querySelectorAll('.hw-review-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              const name = btn.getAttribute('data-name');
-              openReviewModal(name);
-            });
-          });
-
-          // 綁定對比模式勾選
-          if (isCompareMode) {
-            grid.querySelectorAll('.compare-chk').forEach(chk => {
-              chk.addEventListener('change', () => {
-                const name = chk.getAttribute('data-name');
-                if (chk.checked) {
-                  if (!selectedForCompare.includes(name)) selectedForCompare.push(name);
-                } else {
-                  selectedForCompare = selectedForCompare.filter(n => n !== name);
-                }
-                compareCountEl.textContent = selectedForCompare.length;
-              });
-            });
-          }
-
           updateHwScale();
         };
 
-        // ==========================================
-        // Level 1: 學生平板 QR Code 彈窗
-        // ==========================================
-        studentQrBtn.addEventListener('click', () => {
-          const currentOrigin = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-          const studentUrl = `${currentOrigin}student-hw.html?class=${encodeURIComponent(activeClass)}&date=${encodeURIComponent(currentDate)}&sub=${encodeURIComponent(hwData.activeSubject)}`;
-
-          if (typeof window.openQRLightbox === 'function') {
-            window.openQRLightbox(
-              `📱 學生平板掃碼上傳：${hwData.activeSubject}`,
-              studentUrl,
-              '請學生拿出平板相機對準條碼掃描，免登入帳號即可拍照上傳或輸入文字作業！'
-            );
-          } else {
-            prompt('請複製以下學生作業繳交端網址：', studentUrl);
-          }
-        });
-
-        // ==========================================
-        // Level 2: 課堂對比檢討模式
-        // ==========================================
-        compareModeBtn.addEventListener('click', () => {
-          isCompareMode = true;
-          selectedForCompare = [];
-          compareBar.style.display = 'flex';
-          compareCountEl.textContent = '0';
-          render();
-        });
-
-        exitCompareBtn.addEventListener('click', () => {
-          isCompareMode = false;
-          selectedForCompare = [];
-          compareBar.style.display = 'none';
-          render();
-        });
-
-        doCompareBtn.addEventListener('click', () => {
-          if (selectedForCompare.length < 2) {
-            alert('請至少勾選 2 位學生的作業進行並排對比喔！');
-            return;
-          }
-          if (selectedForCompare.length > 4) {
-            alert('大螢幕並排對比建議選擇 2~4 位學生，版面最為清晰舒適！');
-            return;
-          }
-          openCompareModal(selectedForCompare);
-        });
-
-        // ==========================================
-        // Level 4: AI 助教與雲端儲存設定彈窗
-        // ==========================================
-        aiSettingsBtn.addEventListener('click', () => {
-          openSettingsModal();
-        });
-
-        const openSettingsModal = () => {
-          const curGemini = localStorage.getItem('puti_gemini_api_key') || '';
-          const curGroq = localStorage.getItem('puti_groq_api_key') || '';
-          const curGas = localStorage.getItem('puti_hw_gas_url') || '';
-
-          const modalHtml = `
-            <div id="hw-settings-modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 99999; display: flex; align-items: center; justify-content: center;">
-              <div style="background: #FFF; width: 92%; max-width: 540px; border-radius: 16px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #E2E8F0; padding-bottom: 10px;">
-                  <div style="font-weight: 900; font-size: 1.15rem; color: #1E293B; display: flex; align-items: center; gap: 8px;">
-                    <i class="fa-solid fa-wand-magic-sparkles" style="color: #D97706;"></i>
-                    <span>AI 助教雙保險與 Google Drive 雲端設定</span>
-                  </div>
-                  <button type="button" id="hw-set-close-btn" style="border: none; background: #F1F5F9; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 0.9rem; color: #64748B;">✕</button>
-                </div>
-
-                <!-- Google Gemini API Key -->
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                  <label style="font-weight: 800; font-size: 0.86rem; color: #334155;">
-                    1. Google Gemini API Key (首選主力 / 動態適配最高版本 2.5/2.0/1.5)：
-                  </label>
-                  <input type="password" id="hw-cfg-gemini" value="${curGemini}" placeholder="請貼入 AIzaSy..." style="width: 100%; padding: 8px 10px; border-radius: 8px; border: 1.5px solid #CBD5E1; font-family: monospace; font-size: 0.9rem; box-sizing: border-box;">
-                  <span style="font-size: 0.74rem; color: #64748B;">
-                    👉 免費獲取 Key：<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color: #2563EB; font-weight: 800;">點此前往 Google AI Studio 申請</a>
-                  </span>
-                </div>
-
-                <!-- Groq API Key -->
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                  <label style="font-weight: 800; font-size: 0.86rem; color: #334155;">
-                    2. Groq Cloud API Key (極速雙保險備援 / 支援 Llama 3.2 Vision)：
-                  </label>
-                  <input type="password" id="hw-cfg-groq" value="${curGroq}" placeholder="請貼入 gsk_..." style="width: 100%; padding: 8px 10px; border-radius: 8px; border: 1.5px solid #CBD5E1; font-family: monospace; font-size: 0.9rem; box-sizing: border-box;">
-                  <span style="font-size: 0.74rem; color: #64748B;">
-                    👉 免費獲取 Key：<a href="https://console.groq.com/keys" target="_blank" rel="noopener" style="color: #2563EB; font-weight: 800;">點此前往 Groq Console 申請</a>
-                  </span>
-                </div>
-
-                <!-- GAS Web App URL -->
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                  <label style="font-weight: 800; font-size: 0.86rem; color: #334155;">
-                    3. Google Apps Script Web App 網址 (可選，長久永久儲存學生照片至 Google Drive)：
-                  </label>
-                  <input type="text" id="hw-cfg-gas" value="${curGas}" placeholder="https://script.google.com/macros/s/.../exec" style="width: 100%; padding: 8px 10px; border-radius: 8px; border: 1.5px solid #CBD5E1; font-size: 0.85rem; box-sizing: border-box;">
-                  <span style="font-size: 0.74rem; color: #64748B;">
-                    💡 不填寫亦可在網頁內本機零延遲批改檢閱。填入後學生照片將同步自動歸檔至您的 Google 雲端硬碟。
-                  </span>
-                </div>
-
-                <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;">
-                  <button type="button" id="hw-set-save-btn" style="padding: 8px 20px; border-radius: 8px; background: #2563EB; color: #FFF; font-weight: 800; font-size: 0.88rem; border: none; cursor: pointer;">
-                    儲存設定
-                  </button>
-                </div>
-              </div>
-            </div>
-          `;
-
-          const div = document.createElement('div');
-          div.innerHTML = modalHtml;
-          document.body.appendChild(div);
-
-          const backdrop = div.querySelector('#hw-settings-modal-backdrop');
-          const closeBtn = div.querySelector('#hw-set-close-btn');
-          const saveBtn = div.querySelector('#hw-set-save-btn');
-
-          const close = () => div.remove();
-          closeBtn.onclick = close;
-          backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
-
-          saveBtn.onclick = () => {
-            const gem = div.querySelector('#hw-cfg-gemini').value.trim();
-            const grq = div.querySelector('#hw-cfg-groq').value.trim();
-            const gas = div.querySelector('#hw-cfg-gas').value.trim();
-
-            localStorage.setItem('puti_gemini_api_key', gem);
-            localStorage.setItem('puti_groq_api_key', grq);
-            localStorage.setItem('puti_hw_gas_url', gas);
-
-            alert('✅ AI 助教與雲端設定已成功儲存！');
-            close();
-          };
-        };
-
-        // ==========================================
-        // Level 3: 作業檢閱、Canvas 紅筆批改與 AI 預審燈箱
-        // ==========================================
-        const openReviewModal = (studentName) => {
-          const sub = hwData.activeSubject;
-          const allSubs = loadSubmissions();
-          const curSub = allSubs[sub] || {};
-          const subItem = curSub[studentName] || { type: 'text', content: '', time: '' };
-
-          const modalHtml = `
-            <div id="hw-review-modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(5px); z-index: 99999; display: flex; align-items: center; justify-content: center;">
-              <div style="background: #FFF; width: 95%; max-width: 900px; height: 92vh; border-radius: 20px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.3);">
-                
-                <!-- 燈箱頂部 -->
-                <div style="background: #F8FAFC; border-bottom: 1.5px solid #E2E8F0; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center;">
-                  <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="font-weight: 900; font-size: 1.15rem; color: #1E293B;">
-                      📝 【${studentName}】的作業檢閱與批改
-                    </span>
-                    <span style="font-size: 0.8rem; background: #FEF3C7; color: #B45309; padding: 2px 8px; border-radius: 6px; font-weight: 800;">
-                      ${sub}
-                    </span>
-                    <span style="font-size: 0.78rem; color: #64748B;">
-                      繳交時間：${subItem.time || '今日'}
-                    </span>
-                  </div>
-                  <div style="display: flex; gap: 8px; align-items: center;">
-                    <button type="button" id="hw-rev-close-btn" style="border: none; background: #E2E8F0; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1rem; color: #475569;">✕</button>
-                  </div>
-                </div>
-
-                <!-- 燈箱主體 (左側畫布批改，右側評語與AI) -->
-                <div style="flex: 1; display: flex; overflow: hidden; flex-direction: row;" id="hw-rev-split-view">
-                  
-                  <!-- 左側展示與繪圖區 -->
-                  <div style="flex: 1.2; background: #1E293B; display: flex; flex-direction: column; position: relative; overflow: hidden;">
-                    <!-- 批改工具列 (Level 3) -->
-                    <div style="background: rgba(30, 41, 59, 0.9); padding: 6px 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; z-index: 10; border-bottom: 1px solid #334155;">
-                      <span style="font-size: 0.75rem; color: #94A3B8; font-weight: 800;"><i class="fa-solid fa-pen"></i> 紅筆:</span>
-                      <button type="button" class="tool-btn active" id="tool-pen-red" style="width: 26px; height: 26px; border-radius: 6px; background: #EF4444; border: 2px solid #FFF; cursor: pointer;" title="紅筆"></button>
-                      <button type="button" class="tool-btn" id="tool-pen-yellow" style="width: 26px; height: 26px; border-radius: 6px; background: #FACC15; border: 1px solid #475569; cursor: pointer;" title="黃色螢光筆"></button>
-                      <button type="button" class="tool-btn" id="tool-eraser" style="padding: 0 6px; height: 26px; border-radius: 6px; background: #475569; color: #FFF; border: none; font-size: 0.72rem; cursor: pointer;" title="橡皮擦"><i class="fa-solid fa-eraser"></i></button>
-                      <button type="button" id="tool-undo" style="padding: 0 6px; height: 26px; border-radius: 6px; background: #475569; color: #FFF; border: none; font-size: 0.72rem; cursor: pointer;" title="復原"><i class="fa-solid fa-rotate-left"></i></button>
-                      <button type="button" id="tool-clear" style="padding: 0 6px; height: 26px; border-radius: 6px; background: #475569; color: #FFF; border: none; font-size: 0.72rem; cursor: pointer;" title="清除筆跡"><i class="fa-solid fa-trash-can"></i></button>
-
-                      <div style="height: 18px; width: 1px; background: #475569; margin: 0 2px;"></div>
-
-                      <!-- 教育印章盤 -->
-                      <span style="font-size: 0.75rem; color: #94A3B8; font-weight: 800;"><i class="fa-solid fa-stamp"></i> 印章:</span>
-                      <button type="button" class="stamp-btn" data-stamp="💮 甲上" style="padding: 1px 6px; height: 24px; border-radius: 6px; background: #FFF1F2; border: 1px solid #FECDD3; color: #E11D48; font-size: 0.72rem; font-weight: 900; cursor: pointer;">💮 甲上</button>
-                      <button type="button" class="stamp-btn" data-stamp="⭐ 好棒" style="padding: 1px 6px; height: 24px; border-radius: 6px; background: #FEF9C3; border: 1px solid #FDE047; color: #854D0E; font-size: 0.72rem; font-weight: 900; cursor: pointer;">⭐ 好棒</button>
-                      <button type="button" class="stamp-btn" data-stamp="👍 優等" style="padding: 1px 6px; height: 24px; border-radius: 6px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #1D4ED8; font-size: 0.72rem; font-weight: 900; cursor: pointer;">👍 優等</button>
-                      <button type="button" class="stamp-btn" data-stamp="✍️ 請訂正" style="padding: 1px 6px; height: 24px; border-radius: 6px; background: #FFF7ED; border: 1px solid #FED7AA; color: #C2410C; font-size: 0.72rem; font-weight: 900; cursor: pointer;">✍️ 請訂正</button>
-                      <button type="button" class="stamp-btn" data-stamp="💯 滿分" style="padding: 1px 6px; height: 24px; border-radius: 6px; background: #F0FDF4; border: 1px solid #BBF7D0; color: #15803D; font-size: 0.72rem; font-weight: 900; cursor: pointer;">💯 滿分</button>
-                    </div>
-
-                    <!-- 作業展示視圖 (照片或文字) -->
-                    <div style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 10px;" id="hw-rev-canvas-container">
-                      ${subItem.type === 'photo' && subItem.content ? `
-                        <div style="position: relative; max-width: 100%; max-height: 100%; display: inline-block;">
-                          <img id="hw-rev-source-img" src="${subItem.content}" style="max-width: 100%; max-height: 70vh; display: block; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.5);">
-                          <canvas id="hw-rev-paint-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none;"></canvas>
-                        </div>
-                      ` : `
-                        <div style="position: relative; width: 90%; max-width: 500px; min-height: 280px; background: #FFFDF7; border: 2px solid #FDE68A; border-radius: 14px; padding: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); font-size: 1.1rem; line-height: 1.8; color: #1E293B; white-space: pre-wrap; font-family: inherit;">
-                          <div style="font-size: 0.8rem; font-weight: 800; color: #D97706; margin-bottom: 8px; border-bottom: 1px dashed #FDE68A; padding-bottom: 4px;">📜 學生文字作業內容：</div>
-                          <div>${subItem.content || '（尚未上傳內容或尚未繳交）'}</div>
-                          <canvas id="hw-rev-paint-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none;"></canvas>
-                        </div>
-                      `}
-                    </div>
-                  </div>
-
-                  <!-- 右側評語與 AI 預審區 (Level 4) -->
-                  <div style="flex: 0.8; background: #F8FAFC; border-left: 1.5px solid #E2E8F0; display: flex; flex-direction: column; padding: 14px; gap: 12px; overflow-y: auto;">
-                    
-                    <!-- AI 助教預審面板 -->
-                    <div style="background: #FFF; border: 1.5px solid #E0E7FF; border-radius: 14px; padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 8px;">
-                      <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: 900; font-size: 0.92rem; color: #3730A3; display: flex; align-items: center; gap: 6px;">
-                          <i class="fa-solid fa-wand-magic-sparkles" style="color: #6366F1;"></i>
-                          <span>AI 助教輔助預審</span>
-                        </span>
-                        <button type="button" id="hw-run-ai-btn" style="height: 28px; padding: 0 10px; font-size: 0.78rem; font-weight: 800; border-radius: 8px; background: linear-gradient(135deg, #6366F1, #4F46E5); color: #FFF; border: none; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                          <i class="fa-solid fa-bolt"></i> 一鍵預審
-                        </button>
-                      </div>
-
-                      <div id="hw-ai-result-box" style="font-size: 0.82rem; color: #475569; line-height: 1.6; background: #F8FAFC; border-radius: 8px; padding: 8px; border: 1px dashed #CBD5E1; min-height: 70px; white-space: pre-wrap;">
-                        點擊「一鍵預審」，AI 助教將自動辨識手寫作業、指出錯別字或算式瑕疵，並產生溫暖教師評語！
-                      </div>
-
-                      <button type="button" id="hw-apply-ai-comment-btn" style="display: none; height: 26px; font-size: 0.74rem; font-weight: 800; border-radius: 6px; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; cursor: pointer;">
-                        📋 帶入評語建議至老師回饋欄
-                      </button>
-                    </div>
-
-                    <!-- 老師正式評語與回饋 -->
-                    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                      <label style="font-weight: 800; font-size: 0.86rem; color: #1E293B; display: flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-comment-dots" style="color: #059669;"></i>
-                        <span>老師批改評語（學生平板可直接看見）：</span>
-                      </label>
-                      <textarea id="hw-teacher-comment-input" style="flex: 1; min-height: 100px; width: 100%; border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 10px; font-size: 0.92rem; outline: none; box-sizing: border-box; resize: vertical; line-height: 1.6; background: #FFF;" placeholder="輸入給孩子的溫暖回饋、訂正指引或鼓勵..."></textarea>
-                    </div>
-
-                    <!-- 儲存批改按鈕 -->
-                    <div style="display: flex; gap: 8px;">
-                      <button type="button" id="hw-save-review-btn" style="flex: 1; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #10B981, #059669); color: #FFF; font-weight: 900; font-size: 0.95rem; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);">
-                        <i class="fa-solid fa-check-double"></i> 儲存紅筆批改與評語
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          `;
-
-          const modalDiv = document.createElement('div');
-          modalDiv.innerHTML = modalHtml;
-          document.body.appendChild(modalDiv);
-
-          const backdrop = modalDiv.querySelector('#hw-review-modal-backdrop');
-          const closeBtn = modalDiv.querySelector('#hw-rev-close-btn');
-          const runAiBtn = modalDiv.querySelector('#hw-run-ai-btn');
-          const aiResultBox = modalDiv.querySelector('#hw-ai-result-box');
-          const applyAiBtn = modalDiv.querySelector('#hw-apply-ai-comment-btn');
-          const commentInput = modalDiv.querySelector('#hw-teacher-comment-input');
-          const saveReviewBtn = modalDiv.querySelector('#hw-save-review-btn');
-
-          const canvas = modalDiv.querySelector('#hw-rev-paint-canvas');
-          const sourceImg = modalDiv.querySelector('#hw-rev-source-img');
-
-          if (subItem.feedback) {
-            commentInput.value = subItem.feedback;
-          }
-
-          const close = () => modalDiv.remove();
-          closeBtn.onclick = close;
-          backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
-
-          // ==========================================
-          // Canvas 紅筆繪製與印章引擎 (Level 3)
-          // ==========================================
-          let ctx = null;
-          let isDrawing = false;
-          let currentTool = 'red'; // 'red' | 'yellow' | 'eraser' | 'stamp'
-          let activeStampText = '';
-          const historySteps = [];
-
-          if (canvas) {
-            const initCanvas = () => {
-              const rect = sourceImg ? sourceImg.getBoundingClientRect() : canvas.parentElement.getBoundingClientRect();
-              canvas.width = rect.width || 400;
-              canvas.height = rect.height || 300;
-              ctx = canvas.getContext('2d');
-              ctx.lineCap = 'round';
-              ctx.lineJoin = 'round';
-
-              // 若先前有批改紀錄，可重繪
-              saveHistory();
-            };
-
-            if (sourceImg) {
-              if (sourceImg.complete) initCanvas();
-              else sourceImg.onload = initCanvas;
-            } else {
-              setTimeout(initCanvas, 50);
-            }
-
-            const saveHistory = () => {
-              if (!ctx) return;
-              if (historySteps.length > 20) historySteps.shift();
-              historySteps.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-            };
-
-            const getPos = (e) => {
-              const r = canvas.getBoundingClientRect();
-              const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-              const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-              return {
-                x: (clientX - r.left) * (canvas.width / r.width),
-                y: (clientY - r.top) * (canvas.height / r.height)
-              };
-            };
-
-            const startDraw = (e) => {
-              if (!ctx) return;
-              const pos = getPos(e);
-
-              if (currentTool === 'stamp' && activeStampText) {
-                // 蓋印章
-                ctx.save();
-                ctx.font = 'bold 22px "Zen Maru Gothic", sans-serif';
-                ctx.fillStyle = activeStampText.includes('甲') ? '#E11D48' : '#D97706';
-                ctx.strokeStyle = '#FFFFFF';
-                ctx.lineWidth = 3;
-                ctx.strokeText(activeStampText, pos.x - 20, pos.y);
-                ctx.fillText(activeStampText, pos.x - 20, pos.y);
-                ctx.restore();
-                saveHistory();
-                return;
-              }
-
-              isDrawing = true;
-              ctx.beginPath();
-              ctx.moveTo(pos.x, pos.y);
-
-              if (currentTool === 'red') {
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.strokeStyle = '#EF4444';
-                ctx.lineWidth = 3;
-              } else if (currentTool === 'yellow') {
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.strokeStyle = 'rgba(250, 204, 21, 0.45)';
-                ctx.lineWidth = 14;
-              } else if (currentTool === 'eraser') {
-                ctx.globalCompositeOperation = 'destination-out';
-                ctx.lineWidth = 18;
-              }
-            };
-
-            const moveDraw = (e) => {
-              if (!isDrawing || !ctx) return;
-              e.preventDefault();
-              const pos = getPos(e);
-              ctx.lineTo(pos.x, pos.y);
-              ctx.stroke();
-            };
-
-            const endDraw = () => {
-              if (isDrawing) {
-                isDrawing = false;
-                ctx.closePath();
-                saveHistory();
-              }
-            };
-
-            canvas.addEventListener('mousedown', startDraw);
-            canvas.addEventListener('mousemove', moveDraw);
-            window.addEventListener('mouseup', endDraw);
-
-            canvas.addEventListener('touchstart', startDraw, { passive: false });
-            canvas.addEventListener('touchmove', moveDraw, { passive: false });
-            canvas.addEventListener('touchend', endDraw);
-
-            // 工具按鈕切換
-            const redBtn = modalDiv.querySelector('#tool-pen-red');
-            const yellowBtn = modalDiv.querySelector('#tool-pen-yellow');
-            const eraserBtn = modalDiv.querySelector('#tool-eraser');
-            const undoBtn = modalDiv.querySelector('#tool-undo');
-            const clearBtn = modalDiv.querySelector('#tool-clear');
-
-            const resetToolState = () => {
-              modalDiv.querySelectorAll('.tool-btn, .stamp-btn').forEach(b => b.classList.remove('active'));
-            };
-
-            redBtn.onclick = () => { resetToolState(); redBtn.classList.add('active'); currentTool = 'red'; };
-            yellowBtn.onclick = () => { resetToolState(); yellowBtn.classList.add('active'); currentTool = 'yellow'; };
-            eraserBtn.onclick = () => { resetToolState(); eraserBtn.classList.add('active'); currentTool = 'eraser'; };
-
-            modalDiv.querySelectorAll('.stamp-btn').forEach(sb => {
-              sb.onclick = () => {
-                resetToolState();
-                sb.classList.add('active');
-                currentTool = 'stamp';
-                activeStampText = sb.getAttribute('data-stamp');
-              };
-            });
-
-            undoBtn.onclick = () => {
-              if (historySteps.length > 1) {
-                historySteps.pop();
-                const prev = historySteps[historySteps.length - 1];
-                ctx.putImageData(prev, 0, 0);
-              }
-            };
-
-            clearBtn.onclick = () => {
-              if (confirm('確定要清除所有紅筆批改軌跡嗎？')) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                saveHistory();
-              }
-            };
-          }
-
-          // ==========================================
-          // AI 預審執行 (Level 4)
-          // ==========================================
-          let latestAiAdvice = '';
-          runAiBtn.onclick = async () => {
-            runAiBtn.disabled = true;
-            runAiBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI 審查中...';
-            aiResultBox.textContent = '🤖 正在向最新 AI 模型傳送作業並辨識手寫內容...';
-
-            try {
-              const res = await callAIAssistant({
-                text: subItem.type === 'text' ? subItem.content : '',
-                imageBase64: subItem.type === 'photo' ? subItem.content : null,
-                subject: sub,
-                studentName
-              });
-
-              aiResultBox.innerHTML = `<div style="color: #4338CA; font-weight: 800; margin-bottom: 4px;">🎯 審查模型: ${res.provider}</div>${res.content}`;
-              latestAiAdvice = res.content;
-
-              // 擷取最後一句評語
-              const lines = res.content.split('\n').filter(Boolean);
-              const lastLine = lines[lines.length - 1].replace(/^.*?：/, '').trim();
-              if (lastLine) {
-                applyAiBtn.style.display = 'block';
-                applyAiBtn.onclick = () => {
-                  commentInput.value = (commentInput.value ? commentInput.value + '\n' : '') + lastLine;
-                  commentInput.focus();
-                };
-              }
-            } catch(err) {
-              aiResultBox.innerHTML = `<span style="color: #DC2626; font-weight: 800;">⚠️ 審核失敗: ${err.message}</span>`;
-            } finally {
-              runAiBtn.disabled = false;
-              runAiBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 一鍵預審';
-            }
-          };
-
-          // 儲存批改結果
-          saveReviewBtn.onclick = () => {
-            const comment = commentInput.value.trim();
-
-            // 若有 Canvas，合成已批改圖檔
-            let mergedImage = null;
-            if (canvas && sourceImg) {
-              const mergeCanvas = document.createElement('canvas');
-              mergeCanvas.width = canvas.width;
-              mergeCanvas.height = canvas.height;
-              const mCtx = mergeCanvas.getContext('2d');
-              mCtx.drawImage(sourceImg, 0, 0, canvas.width, canvas.height);
-              mCtx.drawImage(canvas, 0, 0);
-              mergedImage = mergeCanvas.toDataURL('image/jpeg', 0.85);
-            }
-
-            // 更新至 LocalStorage
-            const subs = loadSubmissions();
-            if (!subs[sub]) subs[sub] = {};
-            if (!subs[sub][studentName]) {
-              subs[sub][studentName] = { type: 'text', content: '', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-            }
-
-            subs[sub][studentName].feedback = comment;
-            if (mergedImage) {
-              subs[sub][studentName].correctedImage = mergedImage;
-            }
-            saveSubmissions(subs);
-
-            // 自動將該學生標記為已繳
-            ensureActiveSubject();
-            hwData.records[sub][studentName] = true;
-            saveHwData();
-
-            render();
-            alert(`🎉 已成功儲存【${studentName}】的批改軌跡與評語！`);
-            close();
-          };
-        };
-
-        // ==========================================
-        // Level 2: 課堂大螢幕並排檢討對比 Modal
-        // ==========================================
-        const openCompareModal = (studentNames) => {
-          const sub = hwData.activeSubject;
-          const allSubs = loadSubmissions();
-          const curSub = allSubs[sub] || {};
-
-          const cols = studentNames.length === 2 ? 'repeat(2, 1fr)' : 'repeat(2, 1fr)';
-
-          const modalHtml = `
-            <div id="hw-compare-modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); z-index: 99999; display: flex; flex-direction: column;">
-              <!-- 頂部列 -->
-              <div style="background: rgba(30, 41, 59, 0.95); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #334155;">
-                <div style="color: #FFF; font-weight: 900; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
-                  <i class="fa-solid fa-columns" style="color: #A78BFA;"></i>
-                  <span>課堂大螢幕並排檢討對比：【${sub}】</span>
-                </div>
-                <button type="button" id="hw-cmp-close-btn" style="border: none; background: #475569; color: #FFF; border-radius: 50%; width: 34px; height: 34px; cursor: pointer; font-size: 1.1rem;">✕</button>
-              </div>
-
-              <!-- 對比內容多欄網格 -->
-              <div style="flex: 1; display: grid; grid-template-columns: ${cols}; gap: 12px; padding: 16px; overflow-y: auto;">
-                ${studentNames.map(name => {
-                  const it = curSub[name] || {};
-                  return `
-                    <div style="background: #1E293B; border: 2px solid #334155; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.4);">
-                      <div style="background: #0F172A; padding: 8px 14px; color: #FFF; font-weight: 900; font-size: 1rem; display: flex; justify-content: space-between; align-items: center;">
-                        <span>${name}</span>
-                        <span style="font-size: 0.75rem; color: #94A3B8;">${it.time || '今日'}</span>
-                      </div>
-                      <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 10px; background: #0B0F19; overflow: auto;">
-                        ${it.type === 'photo' && it.content ? `
-                          <img src="${it.correctedImage || it.content}" style="max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 8px;">
-                        ` : `
-                          <div style="background: #FFFDF7; width: 90%; min-height: 200px; padding: 16px; border-radius: 12px; font-size: 1.05rem; line-height: 1.7; color: #1E293B; white-space: pre-wrap;">
-                            ${it.content || '（尚未上傳內容）'}
-                          </div>
-                        `}
-                      </div>
-                      ${it.feedback ? `
-                        <div style="background: #FFFBEB; padding: 8px 12px; font-size: 0.82rem; color: #B45309; font-weight: 800; border-top: 1px solid #FDE68A;">
-                          📝 評語：${it.feedback}
-                        </div>
-                      ` : ''}
-                    </div>
-                  `;
-                }).join('')}
-              </div>
-            </div>
-          `;
-
-          const modalDiv = document.createElement('div');
-          modalDiv.innerHTML = modalHtml;
-          document.body.appendChild(modalDiv);
-
-          modalDiv.querySelector('#hw-cmp-close-btn').onclick = () => modalDiv.remove();
-        };
-
-        // ==========================================
-        // 外部切換日期/作業接口
-        // ==========================================
+        // 外部呼叫切換日期與作業項目接口
         if (winInstance) {
           winInstance.setExternalTarget = (targetDate, targetSubject) => {
             currentDate = targetDate || currentDate;
@@ -6491,7 +5689,1026 @@ const ClassroomWidgets = {
         };
         window.addEventListener('rosterUpdated', onRosterUpdated);
 
-        // 學生上傳即時監聽 (BroadcastChannel + storage)
+        updateContactSelect();
+        render();
+      },
+      onClose: () => {
+        if (resizeObserver) resizeObserver.disconnect();
+        if (onRosterUpdated) window.removeEventListener('rosterUpdated', onRosterUpdated);
+      }
+    });
+
+    if (winObj && !winObj.setExternalTarget && typeof winInstance !== "undefined") {
+      winObj.setExternalTarget = winInstance.setExternalTarget;
+    }
+    return winObj;
+  },
+
+  // =========================================================================
+  // 線上作業 (Online Homework) - 獨立新功能！學生平板上傳、大螢幕檢討、紅筆批改、AI助教
+  // =========================================================================
+  spawnOnlineHomework(wm, initialOptions = {}) {
+    const getActiveData = () => {
+      let activeClass = 'default';
+      let roster = null;
+      try {
+        const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
+        if (classData && classData.classes) {
+          const act = classData.classes.find(c => c.id === classData.activeId) || classData.classes[0];
+          if (act) {
+            activeClass = act.id || classData.activeId || 'default';
+            if (Array.isArray(act.roster) && act.roster.length > 0) roster = act.roster;
+          }
+        }
+      } catch(e){}
+      if (!roster) {
+        const saved = JSON.parse(localStorage.getItem('puti_student_roster') || 'null');
+        if (Array.isArray(saved) && saved.length > 0) roster = saved;
+        else roster = Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
+      }
+      return { activeClass, roster };
+    };
+
+    let { activeClass, roster } = getActiveData();
+    const todayStr = new Date().toISOString().split('T')[0];
+    let currentDate = initialOptions.date || localStorage.getItem('puti_active_online_hw_date') || todayStr;
+
+    const getOnlineStorageKey = (d) => `puti_online_hw_${activeClass}_${d}`;
+    const getSubStorageKey = (d) => `puti_hw_sub_${activeClass}_${d}`;
+
+    // 檢查現有已開啟的線上作業視窗
+    let existingWin = null;
+    wm.windows.forEach(w => {
+      if (w.type === 'online-homework') existingWin = w;
+    });
+
+    if (existingWin) {
+      wm.bringToFront(existingWin);
+      return existingWin;
+    }
+
+    const loadOnlineData = (d) => {
+      let data = null;
+      try {
+        data = JSON.parse(localStorage.getItem(getOnlineStorageKey(d)) || 'null');
+      } catch(e){}
+
+      if (!data) {
+        data = {
+          subjects: ['課堂作業', '短文寫作', '美勞創作', '每日心得'],
+          activeSubject: '課堂作業',
+          records: {}
+        };
+      }
+
+      if (!data.records || typeof data.records !== 'object') data.records = {};
+      if (!Array.isArray(data.subjects) || data.subjects.length === 0) {
+        data.subjects = ['課堂作業', '短文寫作', '美勞創作', '每日心得'];
+      }
+      if (!data.activeSubject || !data.subjects.includes(data.activeSubject)) {
+        data.activeSubject = data.subjects[0];
+      }
+      if (!data.records[data.activeSubject]) {
+        data.records[data.activeSubject] = {};
+      }
+      return data;
+    };
+
+    let onlineData = loadOnlineData(currentDate);
+
+    const saveOnlineData = () => {
+      localStorage.setItem(getOnlineStorageKey(currentDate), JSON.stringify(onlineData));
+      localStorage.setItem('puti_active_online_hw_date', currentDate);
+    };
+
+    const loadSubmissions = () => {
+      try {
+        return JSON.parse(localStorage.getItem(getSubStorageKey(currentDate)) || '{}');
+      } catch(e) {
+        return {};
+      }
+    };
+
+    const saveSubmissions = (subData) => {
+      localStorage.setItem(getSubStorageKey(currentDate), JSON.stringify(subData));
+    };
+
+    // AI 助教審查核心
+    const callAIAssistant = async ({ text, imageBase64, subject, studentName }) => {
+      const geminiKey = (localStorage.getItem('puti_gemini_api_key') || '').trim();
+      const groqKey = (localStorage.getItem('puti_groq_api_key') || '').trim();
+
+      if (!geminiKey && !groqKey) {
+        throw new Error('請先至【⚙️ 設定】填入 Google Gemini 或 Groq API Key！');
+      }
+
+      const systemPrompt = `你是一位富有愛心、細心專業的國小資深導師。請審核學生【${studentName}】繳交的國小【${subject}】作業。
+請直接以繁體中文、清晰條列回覆：
+【1. 完整度判定】：(已全數完成 / 局部未寫 / 格式不符)
+【2. 糾錯與指引】：(若為生字/作文，挑出錯別字與修辭瑕疵；若為數學，檢查計算算式；若全對請給予高度肯定)
+【3. 教師溫暖評語建議】：(一句生動、鼓勵且溫暖的短評語，適合寫在聯絡簿或直接給學生)`;
+
+      let highestGeminiModel = 'gemini-1.5-flash';
+      if (geminiKey) {
+        try {
+          const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`);
+          if (listRes.ok) {
+            const listData = await listRes.json();
+            const available = (listData.models || []).map(m => m.name.replace('models/', ''));
+            const candidates = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-flash'];
+            for (const cand of candidates) {
+              if (available.includes(cand)) {
+                highestGeminiModel = cand;
+                break;
+              }
+            }
+          }
+        } catch(e) {}
+
+        try {
+          const contents = [{ role: 'user', parts: [] }];
+          contents[0].parts.push({ text: `${systemPrompt}\n\n學生文字內容：\n${text || '（無純文字，請詳閱所附作業照片）'}` });
+          if (imageBase64) {
+            const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+            contents[0].parts.push({
+              inline_data: { mime_type: 'image/jpeg', data: cleanBase64 }
+            });
+          }
+
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${highestGeminiModel}:generateContent?key=${geminiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents })
+          });
+
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`Gemini API HTTP ${res.status}: ${errText}`);
+          }
+
+          const resData = await res.json();
+          return {
+            provider: `Google Gemini (${highestGeminiModel})`,
+            content: resData.candidates[0].content.parts[0].text
+          };
+        } catch(geminiErr) {
+          console.warn('Gemini 失敗，轉 Groq 備援:', geminiErr);
+          if (!groqKey) throw geminiErr;
+        }
+      }
+
+      if (groqKey) {
+        const groqModel = imageBase64 ? 'llama-3.2-11b-vision-preview' : 'llama-3.3-70b-versatile';
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: imageBase64 ? [
+              { type: 'text', text: `學生文字: ${text || '（請詳閱照片）'}` },
+              { type: 'image_url', image_url: { url: imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}` } }
+            ] : `學生文字: ${text}`
+          }
+        ];
+
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${groqKey}`
+          },
+          body: JSON.stringify({ model: groqModel, messages, temperature: 0.3 })
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`Groq API HTTP ${res.status}: ${errText}`);
+        }
+
+        const data = await res.json();
+        return {
+          provider: `⚡ Groq 雙保險備援 (${groqModel})`,
+          content: data.choices[0].message.content
+        };
+      }
+
+      throw new Error('雙通道 API 呼叫均未完成。');
+    };
+
+    const content = `
+      <div class="online-homework-container" style="display: flex; flex-direction: column; height: 100%; gap: 8px; user-select: none;">
+        <!-- Top Toolbar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #E2E8F0; gap: 6px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label style="font-size: 0.8rem; font-weight: 800; color: #475569;"><i class="fa-solid fa-calendar-day"></i> 作業日期:</label>
+            <input type="date" id="online-hw-date-picker" value="${currentDate}"
+              style="padding: 2px 6px; border-radius: 6px; border: 1.5px solid #CBD5E1; font-weight: 800; color: #334155; font-size: 0.82rem; outline: none; background: #FFF; cursor: pointer;">
+          </div>
+          <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+            <!-- 學生平板掃碼上傳 QR Code -->
+            <button type="button" class="action-btn-main" id="online-hw-qr-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem; background: linear-gradient(135deg, #6366F1, #4F46E5);" title="顯示學生上傳 QR Code，供全班平板掃碼繳交">
+              <i class="fa-solid fa-qrcode"></i> 學生平板上傳
+            </button>
+
+            <!-- 課堂對比檢討模式 -->
+            <button type="button" class="action-btn-secondary" id="online-hw-compare-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem; color: #8B5CF6; border-color: #C4B5FD; font-weight: 800;" title="勾選 2~4 位學生進行大螢幕並排檢討對比">
+              <i class="fa-solid fa-columns"></i> 課堂對比
+            </button>
+
+            <!-- AI 助教與雲端設定 -->
+            <button type="button" class="action-btn-secondary" id="online-hw-ai-settings-btn" style="height: 26px; padding: 0 7px; font-size: 0.74rem; color: #D97706;" title="設定 Gemini / Groq API Key 與 Google Apps Script 雲端儲存網址">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> AI/雲端
+            </button>
+
+            <button type="button" class="action-btn-secondary" id="online-hw-add-sub-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem; border-style: dashed;" title="新增線上作業項目">
+              <i class="fa-solid fa-plus"></i> 新增
+            </button>
+            <button type="button" class="action-btn-secondary" id="online-hw-del-sub-btn" style="height: 26px; padding: 0 6px; font-size: 0.74rem; color: #EF4444;" title="刪除此作業項目">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Subject Tabs Bar -->
+        <div style="display: flex; align-items: center; background: #FFF; padding: 4px 6px; border-radius: 10px; border: 1px solid #E2E8F0; gap: 6px;">
+          <div id="online-hw-tabs-container" style="display: flex; gap: 5px; overflow-x: auto; flex: 1; align-items: center; padding-bottom: 2px;">
+          </div>
+        </div>
+
+        <!-- Progress Bar & Batch Actions -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #EEF2FF; padding: 6px 12px; border-radius: 10px; border: 1px solid #C7D2FE; gap: 10px;">
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 3px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 800; color: #3730A3;">
+              <span id="online-hw-title" style="max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">課堂作業</span>
+              <span id="online-hw-progress-text">已收 0 / 0 人 (0%)</span>
+            </div>
+            <div style="height: 7px; background: #E0E7FF; border-radius: 4px; overflow: hidden;">
+              <div id="online-hw-progress-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #6366F1, #4F46E5); transition: width 0.25s ease;"></div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="action-btn-secondary" id="online-hw-copy-missing-btn" style="height: 28px; padding: 0 8px; font-size: 0.76rem; color: #4338CA; font-weight: 800; border-color: #A5B4FC;" title="複製未繳交學生名單">
+              <i class="fa-solid fa-copy"></i> 催繳名單
+            </button>
+          </div>
+        </div>
+
+        <!-- 对比模式操作指示条 (預設隱藏) -->
+        <div id="online-hw-compare-bar" style="display: none; justify-content: space-between; align-items: center; background: #F3E8FF; padding: 6px 10px; border-radius: 10px; border: 1.5px solid #D8B4FE; color: #6B21A8; font-weight: 800; font-size: 0.82rem;">
+          <span>👉 課堂對比模式：請勾選 2 位或 4 位學生進行並排檢討（已勾選：<span id="online-hw-compare-count" style="color: #9333EA;">0</span> 人）</span>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" id="online-hw-do-compare-btn" style="height: 26px; padding: 0 10px; font-size: 0.76rem; border-radius: 6px; background: #8B5CF6; color: #FFF; border: none; font-weight: 800; cursor: pointer;">
+              <i class="fa-solid fa-play"></i> 開始並排檢討
+            </button>
+            <button type="button" id="online-hw-exit-compare-btn" style="height: 26px; padding: 0 8px; font-size: 0.76rem; border-radius: 6px; background: #FFF; color: #6B21A8; border: 1px solid #D8B4FE; font-weight: 800; cursor: pointer;">
+              退出
+            </button>
+          </div>
+        </div>
+
+        <!-- Students Check Grid -->
+        <div id="online-hw-students-grid" style="flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 2px; overflow-y: auto;">
+        </div>
+
+        <!-- Bottom Guidance -->
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: #64748B; background: #F8FAFC; padding: 3px 8px; border-radius: 8px;">
+          <span>💡 點擊學生卡片開啟【全螢幕作業檢閱、Canvas紅筆批改、教育印章與AI助教預審】；學生平板上傳自動零延遲連動。</span>
+          <span>💻 專供生生用平板與數位作業</span>
+        </div>
+      </div>
+    `;
+
+    let resizeObserver = null;
+    let onRosterUpdated = null;
+    let bc = null;
+
+    const winObj = wm.createWindow({
+      title: '線上作業 (平板上傳 ╳ 紅筆批改 ╳ AI助教)',
+      icon: 'fa-cloud-arrow-up',
+      iconColor: '#6366F1',
+      width: 640,
+      height: 540,
+      type: 'online-homework',
+      contentHtml: content,
+      onInit: (el) => {
+        const datePicker = el.querySelector('#online-hw-date-picker');
+        const tabsContainer = el.querySelector('#online-hw-tabs-container');
+        const grid = el.querySelector('#online-hw-students-grid');
+        const qrBtn = el.querySelector('#online-hw-qr-btn');
+        const compareBtn = el.querySelector('#online-hw-compare-btn');
+        const aiSettingsBtn = el.querySelector('#online-hw-ai-settings-btn');
+        const addSubBtn = el.querySelector('#online-hw-add-sub-btn');
+        const delSubBtn = el.querySelector('#online-hw-del-sub-btn');
+        const copyMissingBtn = el.querySelector('#online-hw-copy-missing-btn');
+        const titleSpan = el.querySelector('#online-hw-title');
+        const progressText = el.querySelector('#online-hw-progress-text');
+        const progressBar = el.querySelector('#online-hw-progress-bar');
+        const compareBar = el.querySelector('#online-hw-compare-bar');
+        const compareCountEl = el.querySelector('#online-hw-compare-count');
+        const doCompareBtn = el.querySelector('#online-hw-do-compare-btn');
+        const exitCompareBtn = el.querySelector('#online-hw-exit-compare-btn');
+
+        let isCompareMode = false;
+        let selectedForCompare = [];
+
+        const updateScale = () => {
+          const width = el.offsetWidth;
+          const height = el.offsetHeight;
+          const scale = Math.max(0.8, Math.min(2.5, Math.min(width / 560, height / 460)));
+          grid.style.gap = Math.round(6 * scale) + 'px';
+          grid.querySelectorAll('.online-hw-card').forEach(c => {
+            c.style.minHeight = Math.round(54 * scale) + 'px';
+            const nameEl = c.querySelector('.online-student-name');
+            if (nameEl) nameEl.style.fontSize = (0.86 * scale).toFixed(2) + 'rem';
+          });
+        };
+
+        resizeObserver = new ResizeObserver(() => updateScale());
+        resizeObserver.observe(el);
+
+        const ensureActive = () => {
+          if (!onlineData.subjects || onlineData.subjects.length === 0) {
+            onlineData.subjects = ['課堂作業'];
+          }
+          if (!onlineData.activeSubject || !onlineData.subjects.includes(onlineData.activeSubject)) {
+            onlineData.activeSubject = onlineData.subjects[0];
+          }
+          if (!onlineData.records) onlineData.records = {};
+          if (!onlineData.records[onlineData.activeSubject]) {
+            onlineData.records[onlineData.activeSubject] = {};
+          }
+        };
+
+        const renderTabs = () => {
+          ensureActive();
+          tabsContainer.innerHTML = onlineData.subjects.map(sub => {
+            const isActive = sub === onlineData.activeSubject;
+            const rec = onlineData.records[sub] || {};
+            const doneCount = roster.filter(name => rec[name]).length;
+
+            return `
+              <button type="button" class="hw-sub-tab ${isActive ? 'active' : ''}" data-sub="${encodeURIComponent(sub)}"
+                style="height: 28px; padding: 0 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 800; border: 1.5px solid ${isActive ? '#6366F1' : '#E2E8F0'}; background: ${isActive ? '#EEF2FF' : '#FFF'}; color: ${isActive ? '#4338CA' : '#64748B'}; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;">
+                <span>${sub}</span>
+                <span style="font-size: 0.7rem; background: ${isActive ? '#E0E7FF' : '#F1F5F9'}; padding: 1px 5px; border-radius: 6px;">${doneCount}/${roster.length}</span>
+              </button>
+            `;
+          }).join('');
+
+          tabsContainer.querySelectorAll('.hw-sub-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+              onlineData.activeSubject = decodeURIComponent(btn.getAttribute('data-sub'));
+              ensureActive();
+              saveOnlineData();
+              render();
+            });
+          });
+        };
+
+        const render = () => {
+          ensureActive();
+          renderTabs();
+
+          const sub = onlineData.activeSubject;
+          const rec = onlineData.records[sub];
+          const allSubs = loadSubmissions();
+          const curSubMap = allSubs[sub] || {};
+          let doneCount = 0;
+
+          grid.innerHTML = roster.map(name => {
+            const isDone = !!rec[name];
+            if (isDone) doneCount++;
+            const subDetail = curSubMap[name];
+            const hasUpload = !!subDetail;
+            const hasCorrected = subDetail && (subDetail.feedback || subDetail.correctedImage);
+            const isCompared = selectedForCompare.includes(name);
+
+            return `
+              <div class="online-hw-card ${isCompared ? 'compared-selected' : ''}" data-name="${name}"
+                style="background: ${isDone ? '#EEF2FF' : '#FFF1F2'}; border: 1.5px solid ${isCompared ? '#8B5CF6' : (isDone ? '#A5B4FC' : '#FECDD3')}; border-radius: 12px; padding: 6px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 3px; min-height: 54px; position: relative;">
+                
+                ${isCompareMode ? `
+                  <div style="position: absolute; top: 4px; left: 4px; z-index: 2;">
+                    <input type="checkbox" class="compare-chk" data-name="${name}" ${isCompared ? 'checked' : ''} style="transform: scale(1.1); cursor: pointer;">
+                  </div>
+                ` : ''}
+
+                ${hasUpload ? `
+                  <span style="position: absolute; top: 3px; right: 4px; font-size: 0.62rem; font-weight: 800; background: ${hasCorrected ? '#FEF08A' : '#DBEAFE'}; color: ${hasCorrected ? '#854D0E' : '#1E40AF'}; padding: 1px 4px; border-radius: 4px;">
+                    ${hasCorrected ? '💮 已批改' : (subDetail.type === 'photo' ? '📷 照片' : '✍️ 打字')}
+                  </span>
+                ` : ''}
+
+                <div class="online-student-name" style="font-size: 0.86rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%;">
+                  ${name}
+                </div>
+
+                <div style="display: flex; gap: 4px; align-items: center; width: 100%; justify-content: center;">
+                  <span style="font-size: 0.72rem; font-weight: 900; background: ${isDone ? '#4F46E5' : '#F43F5E'}; color: #FFF; padding: 2px 8px; border-radius: 999px; line-height: 1.2;">
+                    ${isDone ? '✓ 已繳' : '✕ 未交'}
+                  </span>
+                  <span style="font-size: 0.66rem; font-weight: 800; background: #6366F1; color: #FFF; padding: 2px 6px; border-radius: 6px;">
+                    檢閱/批改
+                  </span>
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          const total = roster.length;
+          const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+          titleSpan.textContent = sub;
+          progressText.textContent = `已收 ${doneCount} / ${total} 人 (${pct}%)`;
+          progressBar.style.width = `${pct}%`;
+
+          // 點擊卡片開啟檢閱批改燈箱
+          grid.querySelectorAll('.online-hw-card').forEach(card => {
+            const name = card.getAttribute('data-name');
+            card.addEventListener('click', (e) => {
+              if (isCompareMode) {
+                const chk = card.querySelector('.compare-chk');
+                if (chk) {
+                  chk.checked = !chk.checked;
+                  chk.dispatchEvent(new Event('change'));
+                }
+                return;
+              }
+              openReviewModal(name);
+            });
+          });
+
+          if (isCompareMode) {
+            grid.querySelectorAll('.compare-chk').forEach(chk => {
+              chk.addEventListener('change', () => {
+                const name = chk.getAttribute('data-name');
+                if (chk.checked) {
+                  if (!selectedForCompare.includes(name)) selectedForCompare.push(name);
+                } else {
+                  selectedForCompare = selectedForCompare.filter(n => n !== name);
+                }
+                compareCountEl.textContent = selectedForCompare.length;
+              });
+            });
+          }
+
+          updateScale();
+        };
+
+        // 學生上傳 QR Code
+        qrBtn.addEventListener('click', () => {
+          const currentOrigin = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+          const studentUrl = `${currentOrigin}student-hw.html?class=${encodeURIComponent(activeClass)}&date=${encodeURIComponent(currentDate)}&sub=${encodeURIComponent(onlineData.activeSubject)}`;
+
+          if (typeof window.openQRLightbox === 'function') {
+            window.openQRLightbox(
+              `📱 學生平板線上作業繳交：${onlineData.activeSubject}`,
+              studentUrl,
+              '請學生拿出平板相機對準條碼掃描，免登入帳號即可拍照上傳或輸入文字作業！'
+            );
+          } else {
+            prompt('請複製以下學生作業繳交端網址：', studentUrl);
+          }
+        });
+
+        // 課堂對比模式
+        compareBtn.addEventListener('click', () => {
+          isCompareMode = true;
+          selectedForCompare = [];
+          compareBar.style.display = 'flex';
+          compareCountEl.textContent = '0';
+          render();
+        });
+
+        exitCompareBtn.addEventListener('click', () => {
+          isCompareMode = false;
+          selectedForCompare = [];
+          compareBar.style.display = 'none';
+          render();
+        });
+
+        doCompareBtn.addEventListener('click', () => {
+          if (selectedForCompare.length < 2) {
+            alert('請至少勾選 2 位學生的作業進行並排對比喔！');
+            return;
+          }
+          if (selectedForCompare.length > 4) {
+            alert('大螢幕並排對比建議選擇 2~4 位學生，版面最為清晰舒適！');
+            return;
+          }
+          openCompareModal(selectedForCompare);
+        });
+
+        // AI 助教與雲端設定
+        aiSettingsBtn.addEventListener('click', () => {
+          openSettingsModal();
+        });
+
+        const openSettingsModal = () => {
+          const curGemini = localStorage.getItem('puti_gemini_api_key') || '';
+          const curGroq = localStorage.getItem('puti_groq_api_key') || '';
+          const curGas = localStorage.getItem('puti_hw_gas_url') || '';
+
+          const modalHtml = `
+            <div id="online-hw-cfg-backdrop" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 99999; display: flex; align-items: center; justify-content: center;">
+              <div style="background: #FFF; width: 92%; max-width: 540px; border-radius: 16px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #E2E8F0; padding-bottom: 10px;">
+                  <div style="font-weight: 900; font-size: 1.15rem; color: #1E293B; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-wand-magic-sparkles" style="color: #6366F1;"></i>
+                    <span>線上作業 AI 助教與 Google 雲端設定</span>
+                  </div>
+                  <button type="button" id="online-cfg-close" style="border: none; background: #F1F5F9; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 0.9rem; color: #64748B;">✕</button>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                  <label style="font-weight: 800; font-size: 0.86rem; color: #334155;">1. Google Gemini API Key (動態最高版本 2.5/2.0/1.5)：</label>
+                  <input type="password" id="online-cfg-gemini" value="${curGemini}" placeholder="請貼入 AIzaSy..." style="width: 100%; padding: 8px 10px; border-radius: 8px; border: 1.5px solid #CBD5E1; font-family: monospace; font-size: 0.9rem; box-sizing: border-box;">
+                  <span style="font-size: 0.74rem; color: #64748B;">👉 免費申請：<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color: #2563EB; font-weight: 800;">Google AI Studio</a></span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                  <label style="font-weight: 800; font-size: 0.86rem; color: #334155;">2. Groq Cloud API Key (極速雙保險備援 / 支援 Llama 3.2 Vision)：</label>
+                  <input type="password" id="online-cfg-groq" value="${curGroq}" placeholder="請貼入 gsk_..." style="width: 100%; padding: 8px 10px; border-radius: 8px; border: 1.5px solid #CBD5E1; font-family: monospace; font-size: 0.9rem; box-sizing: border-box;">
+                  <span style="font-size: 0.74rem; color: #64748B;">👉 免費申請：<a href="https://console.groq.com/keys" target="_blank" rel="noopener" style="color: #2563EB; font-weight: 800;">Groq Console</a></span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                  <label style="font-weight: 800; font-size: 0.86rem; color: #334155;">3. Google Apps Script Web App 網址 (可選，永久自動歸檔學生作業至 Drive)：</label>
+                  <input type="text" id="online-cfg-gas" value="${curGas}" placeholder="https://script.google.com/macros/s/.../exec" style="width: 100%; padding: 8px 10px; border-radius: 8px; border: 1.5px solid #CBD5E1; font-size: 0.85rem; box-sizing: border-box;">
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;">
+                  <button type="button" id="online-cfg-save" style="padding: 8px 20px; border-radius: 8px; background: #6366F1; color: #FFF; font-weight: 800; font-size: 0.88rem; border: none; cursor: pointer;">
+                    儲存設定
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+
+          const div = document.createElement('div');
+          div.innerHTML = modalHtml;
+          document.body.appendChild(div);
+
+          const backdrop = div.querySelector('#online-hw-cfg-backdrop');
+          const close = () => div.remove();
+          div.querySelector('#online-cfg-close').onclick = close;
+          backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+
+          div.querySelector('#online-cfg-save').onclick = () => {
+            localStorage.setItem('puti_gemini_api_key', div.querySelector('#online-cfg-gemini').value.trim());
+            localStorage.setItem('puti_groq_api_key', div.querySelector('#online-cfg-groq').value.trim());
+            localStorage.setItem('puti_hw_gas_url', div.querySelector('#online-cfg-gas').value.trim());
+            alert('✅ 線上作業 AI 與雲端設定已成功儲存！');
+            close();
+          };
+        };
+
+        // 作業檢閱與 Canvas 批改燈箱
+        const openReviewModal = (studentName) => {
+          const sub = onlineData.activeSubject;
+          const allSubs = loadSubmissions();
+          const curSub = allSubs[sub] || {};
+          const subItem = curSub[studentName] || { type: 'text', content: '', time: '' };
+
+          const modalHtml = `
+            <div id="online-rev-backdrop" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(5px); z-index: 99999; display: flex; align-items: center; justify-content: center;">
+              <div style="background: #FFF; width: 95%; max-width: 900px; height: 92vh; border-radius: 20px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.3);">
+                
+                <div style="background: #F8FAFC; border-bottom: 1.5px solid #E2E8F0; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-weight: 900; font-size: 1.15rem; color: #1E293B;">
+                      📝 【${studentName}】的線上作業檢閱與批改
+                    </span>
+                    <span style="font-size: 0.8rem; background: #EEF2FF; color: #4338CA; padding: 2px 8px; border-radius: 6px; font-weight: 800;">
+                      ${sub}
+                    </span>
+                    <span style="font-size: 0.78rem; color: #64748B;">
+                      繳交時間：${subItem.time || '今日'}
+                    </span>
+                  </div>
+                  <button type="button" id="online-rev-close" style="border: none; background: #E2E8F0; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1rem; color: #475569;">✕</button>
+                </div>
+
+                <div style="flex: 1; display: flex; overflow: hidden; flex-direction: row;">
+                  <!-- 左側展示與批改畫布 -->
+                  <div style="flex: 1.2; background: #1E293B; display: flex; flex-direction: column; position: relative; overflow: hidden;">
+                    <div style="background: rgba(30, 41, 59, 0.9); padding: 6px 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; z-index: 10; border-bottom: 1px solid #334155;">
+                      <span style="font-size: 0.75rem; color: #94A3B8; font-weight: 800;"><i class="fa-solid fa-pen"></i> 紅筆:</span>
+                      <button type="button" class="tool-btn active" id="online-pen-red" style="width: 26px; height: 26px; border-radius: 6px; background: #EF4444; border: 2px solid #FFF; cursor: pointer;"></button>
+                      <button type="button" class="tool-btn" id="online-pen-yellow" style="width: 26px; height: 26px; border-radius: 6px; background: #FACC15; border: 1px solid #475569; cursor: pointer;"></button>
+                      <button type="button" class="tool-btn" id="online-eraser" style="padding: 0 6px; height: 26px; border-radius: 6px; background: #475569; color: #FFF; border: none; font-size: 0.72rem; cursor: pointer;"><i class="fa-solid fa-eraser"></i></button>
+                      <button type="button" id="online-undo" style="padding: 0 6px; height: 26px; border-radius: 6px; background: #475569; color: #FFF; border: none; font-size: 0.72rem; cursor: pointer;"><i class="fa-solid fa-rotate-left"></i></button>
+                      <button type="button" id="online-clear" style="padding: 0 6px; height: 26px; border-radius: 6px; background: #475569; color: #FFF; border: none; font-size: 0.72rem; cursor: pointer;"><i class="fa-solid fa-trash-can"></i></button>
+
+                      <div style="height: 18px; width: 1px; background: #475569; margin: 0 2px;"></div>
+
+                      <span style="font-size: 0.75rem; color: #94A3B8; font-weight: 800;"><i class="fa-solid fa-stamp"></i> 印章:</span>
+                      <button type="button" class="stamp-btn" data-stamp="💮 甲上" style="padding: 1px 6px; height: 24px; border-radius: 6px; background: #FFF1F2; border: 1px solid #FECDD3; color: #E11D48; font-size: 0.72rem; font-weight: 900; cursor: pointer;">💮 甲上</button>
+                      <button type="button" class="stamp-btn" data-stamp="⭐ 好棒" style="padding: 1px 6px; height: 24px; border-radius: 6px; background: #FEF9C3; border: 1px solid #FDE047; color: #854D0E; font-size: 0.72rem; font-weight: 900; cursor: pointer;">⭐ 好棒</button>
+                      <button type="button" class="stamp-btn" data-stamp="👍 優等" style="padding: 1px 6px; height: 24px; border-radius: 6px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #1D4ED8; font-size: 0.72rem; font-weight: 900; cursor: pointer;">👍 優等</button>
+                      <button type="button" class="stamp-btn" data-stamp="✍️ 請訂正" style="padding: 1px 6px; height: 24px; border-radius: 6px; background: #FFF7ED; border: 1px solid #FED7AA; color: #C2410C; font-size: 0.72rem; font-weight: 900; cursor: pointer;">✍️ 請訂正</button>
+                      <button type="button" class="stamp-btn" data-stamp="💯 滿分" style="padding: 1px 6px; height: 24px; border-radius: 6px; background: #F0FDF4; border: 1px solid #BBF7D0; color: #15803D; font-size: 0.72rem; font-weight: 900; cursor: pointer;">💯 滿分</button>
+                    </div>
+
+                    <div style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 10px;">
+                      ${subItem.type === 'photo' && subItem.content ? `
+                        <div style="position: relative; max-width: 100%; max-height: 100%; display: inline-block;">
+                          <img id="online-src-img" src="${subItem.content}" style="max-width: 100%; max-height: 70vh; display: block; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.5);">
+                          <canvas id="online-paint-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none;"></canvas>
+                        </div>
+                      ` : `
+                        <div style="position: relative; width: 90%; max-width: 500px; min-height: 280px; background: #FFFDF7; border: 2px solid #FDE68A; border-radius: 14px; padding: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); font-size: 1.1rem; line-height: 1.8; color: #1E293B; white-space: pre-wrap;">
+                          <div style="font-size: 0.8rem; font-weight: 800; color: #D97706; margin-bottom: 8px; border-bottom: 1px dashed #FDE68A; padding-bottom: 4px;">📜 學生文字作業內容：</div>
+                          <div>${subItem.content || '（尚未上傳內容或尚未繳交）'}</div>
+                          <canvas id="online-paint-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none;"></canvas>
+                        </div>
+                      `}
+                    </div>
+                  </div>
+
+                  <!-- 右側評語與 AI 預審 -->
+                  <div style="flex: 0.8; background: #F8FAFC; border-left: 1.5px solid #E2E8F0; display: flex; flex-direction: column; padding: 14px; gap: 12px; overflow-y: auto;">
+                    <div style="background: #FFF; border: 1.5px solid #E0E7FF; border-radius: 14px; padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 8px;">
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 900; font-size: 0.92rem; color: #3730A3; display: flex; align-items: center; gap: 6px;">
+                          <i class="fa-solid fa-wand-magic-sparkles" style="color: #6366F1;"></i>
+                          <span>AI 助教輔助預審</span>
+                        </span>
+                        <button type="button" id="online-run-ai" style="height: 28px; padding: 0 10px; font-size: 0.78rem; font-weight: 800; border-radius: 8px; background: linear-gradient(135deg, #6366F1, #4F46E5); color: #FFF; border: none; cursor: pointer;">
+                          <i class="fa-solid fa-bolt"></i> 一鍵預審
+                        </button>
+                      </div>
+
+                      <div id="online-ai-result" style="font-size: 0.82rem; color: #475569; line-height: 1.6; background: #F8FAFC; border-radius: 8px; padding: 8px; border: 1px dashed #CBD5E1; min-height: 70px; white-space: pre-wrap;">
+                        點擊「一鍵預審」，AI 助教將自動辨識手寫作業、指出錯別字或算式瑕疵，並產生溫暖教師評語！
+                      </div>
+
+                      <button type="button" id="online-apply-ai" style="display: none; height: 26px; font-size: 0.74rem; font-weight: 800; border-radius: 6px; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; cursor: pointer;">
+                        📋 帶入評語建議至老師回饋欄
+                      </button>
+                    </div>
+
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                      <label style="font-weight: 800; font-size: 0.86rem; color: #1E293B;">老師批改評語（學生平板可直接看見）：</label>
+                      <textarea id="online-comment-input" style="flex: 1; min-height: 100px; width: 100%; border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 10px; font-size: 0.92rem; outline: none; box-sizing: border-box; resize: vertical; line-height: 1.6;" placeholder="輸入給孩子的溫暖回饋、訂正指引或鼓勵..."></textarea>
+                    </div>
+
+                    <button type="button" id="online-save-btn" style="height: 40px; border-radius: 12px; background: linear-gradient(135deg, #6366F1, #4F46E5); color: #FFF; font-weight: 900; font-size: 0.95rem; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);">
+                      <i class="fa-solid fa-check-double"></i> 儲存紅筆批改與評語
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          `;
+
+          const modalDiv = document.createElement('div');
+          modalDiv.innerHTML = modalHtml;
+          document.body.appendChild(modalDiv);
+
+          const backdrop = modalDiv.querySelector('#online-rev-backdrop');
+          const close = () => modalDiv.remove();
+          modalDiv.querySelector('#online-rev-close').onclick = close;
+          backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+
+          const canvas = modalDiv.querySelector('#online-paint-canvas');
+          const sourceImg = modalDiv.querySelector('#online-src-img');
+          const commentInput = modalDiv.querySelector('#online-comment-input');
+          const runAiBtn = modalDiv.querySelector('#online-run-ai');
+          const aiResultBox = modalDiv.querySelector('#online-ai-result');
+          const applyAiBtn = modalDiv.querySelector('#online-apply-ai');
+          const saveBtn = modalDiv.querySelector('#online-save-btn');
+
+          if (subItem.feedback) commentInput.value = subItem.feedback;
+
+          // Canvas 塗鴉引擎
+          let ctx = null, isDrawing = false, currentTool = 'red', activeStampText = '';
+          const historySteps = [];
+
+          if (canvas) {
+            const initCanvas = () => {
+              const rect = sourceImg ? sourceImg.getBoundingClientRect() : canvas.parentElement.getBoundingClientRect();
+              canvas.width = rect.width || 400;
+              canvas.height = rect.height || 300;
+              ctx = canvas.getContext('2d');
+              ctx.lineCap = 'round';
+              ctx.lineJoin = 'round';
+              saveHistory();
+            };
+
+            if (sourceImg) {
+              if (sourceImg.complete) initCanvas();
+              else sourceImg.onload = initCanvas;
+            } else {
+              setTimeout(initCanvas, 50);
+            }
+
+            const saveHistory = () => {
+              if (!ctx) return;
+              if (historySteps.length > 20) historySteps.shift();
+              historySteps.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+            };
+
+            const getPos = (e) => {
+              const r = canvas.getBoundingClientRect();
+              const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+              const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+              return {
+                x: (clientX - r.left) * (canvas.width / r.width),
+                y: (clientY - r.top) * (canvas.height / r.height)
+              };
+            };
+
+            const startDraw = (e) => {
+              if (!ctx) return;
+              const pos = getPos(e);
+              if (currentTool === 'stamp' && activeStampText) {
+                ctx.save();
+                ctx.font = 'bold 22px "Zen Maru Gothic", sans-serif';
+                ctx.fillStyle = activeStampText.includes('甲') ? '#E11D48' : '#D97706';
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 3;
+                ctx.strokeText(activeStampText, pos.x - 20, pos.y);
+                ctx.fillText(activeStampText, pos.x - 20, pos.y);
+                ctx.restore();
+                saveHistory();
+                return;
+              }
+
+              isDrawing = true;
+              ctx.beginPath();
+              ctx.moveTo(pos.x, pos.y);
+
+              if (currentTool === 'red') {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = '#EF4444';
+                ctx.lineWidth = 3;
+              } else if (currentTool === 'yellow') {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = 'rgba(250, 204, 21, 0.45)';
+                ctx.lineWidth = 14;
+              } else if (currentTool === 'eraser') {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.lineWidth = 18;
+              }
+            };
+
+            const moveDraw = (e) => {
+              if (!isDrawing || !ctx) return;
+              e.preventDefault();
+              const pos = getPos(e);
+              ctx.lineTo(pos.x, pos.y);
+              ctx.stroke();
+            };
+
+            const endDraw = () => {
+              if (isDrawing) {
+                isDrawing = false;
+                ctx.closePath();
+                saveHistory();
+              }
+            };
+
+            canvas.addEventListener('mousedown', startDraw);
+            canvas.addEventListener('mousemove', moveDraw);
+            window.addEventListener('mouseup', endDraw);
+
+            canvas.addEventListener('touchstart', startDraw, { passive: false });
+            canvas.addEventListener('touchmove', moveDraw, { passive: false });
+            canvas.addEventListener('touchend', endDraw);
+
+            const redBtn = modalDiv.querySelector('#online-pen-red');
+            const yellowBtn = modalDiv.querySelector('#online-pen-yellow');
+            const eraserBtn = modalDiv.querySelector('#online-eraser');
+            const undoBtn = modalDiv.querySelector('#online-undo');
+            const clearBtn = modalDiv.querySelector('#online-clear');
+
+            const resetToolState = () => {
+              modalDiv.querySelectorAll('.tool-btn, .stamp-btn').forEach(b => b.classList.remove('active'));
+            };
+
+            redBtn.onclick = () => { resetToolState(); redBtn.classList.add('active'); currentTool = 'red'; };
+            yellowBtn.onclick = () => { resetToolState(); yellowBtn.classList.add('active'); currentTool = 'yellow'; };
+            eraserBtn.onclick = () => { resetToolState(); eraserBtn.classList.add('active'); currentTool = 'eraser'; };
+
+            modalDiv.querySelectorAll('.stamp-btn').forEach(sb => {
+              sb.onclick = () => {
+                resetToolState();
+                sb.classList.add('active');
+                currentTool = 'stamp';
+                activeStampText = sb.getAttribute('data-stamp');
+              };
+            });
+
+            undoBtn.onclick = () => {
+              if (historySteps.length > 1) {
+                historySteps.pop();
+                const prev = historySteps[historySteps.length - 1];
+                ctx.putImageData(prev, 0, 0);
+              }
+            };
+
+            clearBtn.onclick = () => {
+              if (confirm('確定要清除所有紅筆批改軌跡嗎？')) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                saveHistory();
+              }
+            };
+          }
+
+          // AI 預審
+          runAiBtn.onclick = async () => {
+            runAiBtn.disabled = true;
+            runAiBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI 審查中...';
+            aiResultBox.textContent = '🤖 正在向最新 AI 模型傳送作業並辨識手寫內容...';
+
+            try {
+              const res = await callAIAssistant({
+                text: subItem.type === 'text' ? subItem.content : '',
+                imageBase64: subItem.type === 'photo' ? subItem.content : null,
+                subject: sub,
+                studentName
+              });
+
+              aiResultBox.innerHTML = `<div style="color: #4338CA; font-weight: 800; margin-bottom: 4px;">🎯 審查模型: ${res.provider}</div>${res.content}`;
+              const lines = res.content.split('\n').filter(Boolean);
+              const lastLine = lines[lines.length - 1].replace(/^.*?：/, '').trim();
+              if (lastLine) {
+                applyAiBtn.style.display = 'block';
+                applyAiBtn.onclick = () => {
+                  commentInput.value = (commentInput.value ? commentInput.value + '\n' : '') + lastLine;
+                  commentInput.focus();
+                };
+              }
+            } catch(err) {
+              aiResultBox.innerHTML = `<span style="color: #DC2626; font-weight: 800;">⚠️ 審核失敗: ${err.message}</span>`;
+            } finally {
+              runAiBtn.disabled = false;
+              runAiBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 一鍵預審';
+            }
+          };
+
+          // 儲存批改
+          saveBtn.onclick = () => {
+            const comment = commentInput.value.trim();
+            let mergedImage = null;
+            if (canvas && sourceImg) {
+              const mergeCanvas = document.createElement('canvas');
+              mergeCanvas.width = canvas.width;
+              mergeCanvas.height = canvas.height;
+              const mCtx = mergeCanvas.getContext('2d');
+              mCtx.drawImage(sourceImg, 0, 0, canvas.width, canvas.height);
+              mCtx.drawImage(canvas, 0, 0);
+              mergedImage = mergeCanvas.toDataURL('image/jpeg', 0.85);
+            }
+
+            const subs = loadSubmissions();
+            if (!subs[sub]) subs[sub] = {};
+            if (!subs[sub][studentName]) {
+              subs[sub][studentName] = { type: 'text', content: '', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+            }
+
+            subs[sub][studentName].feedback = comment;
+            if (mergedImage) subs[sub][studentName].correctedImage = mergedImage;
+            saveSubmissions(subs);
+
+            ensureActive();
+            onlineData.records[sub][studentName] = true;
+            saveOnlineData();
+
+            render();
+            alert(`🎉 已成功儲存【${studentName}】的批改軌跡與評語！`);
+            close();
+          };
+        };
+
+        // 課堂對比檢討 Modal
+        const openCompareModal = (studentNames) => {
+          const sub = onlineData.activeSubject;
+          const allSubs = loadSubmissions();
+          const curSub = allSubs[sub] || {};
+          const cols = studentNames.length === 2 ? 'repeat(2, 1fr)' : 'repeat(2, 1fr)';
+
+          const modalHtml = `
+            <div id="online-cmp-backdrop" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); z-index: 99999; display: flex; flex-direction: column;">
+              <div style="background: rgba(30, 41, 59, 0.95); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #334155;">
+                <div style="color: #FFF; font-weight: 900; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-columns" style="color: #A78BFA;"></i>
+                  <span>課堂大螢幕並排檢討對比：【${sub}】</span>
+                </div>
+                <button type="button" id="online-cmp-close" style="border: none; background: #475569; color: #FFF; border-radius: 50%; width: 34px; height: 34px; cursor: pointer; font-size: 1.1rem;">✕</button>
+              </div>
+
+              <div style="flex: 1; display: grid; grid-template-columns: ${cols}; gap: 12px; padding: 16px; overflow-y: auto;">
+                ${studentNames.map(name => {
+                  const it = curSub[name] || {};
+                  return `
+                    <div style="background: #1E293B; border: 2px solid #334155; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.4);">
+                      <div style="background: #0F172A; padding: 8px 14px; color: #FFF; font-weight: 900; font-size: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                        <span>${name}</span>
+                        <span style="font-size: 0.75rem; color: #94A3B8;">${it.time || '今日'}</span>
+                      </div>
+                      <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 10px; background: #0B0F19; overflow: auto;">
+                        ${it.type === 'photo' && it.content ? `
+                          <img src="${it.correctedImage || it.content}" style="max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 8px;">
+                        ` : `
+                          <div style="background: #FFFDF7; width: 90%; min-height: 200px; padding: 16px; border-radius: 12px; font-size: 1.05rem; line-height: 1.7; color: #1E293B; white-space: pre-wrap;">
+                            ${it.content || '（尚未上傳內容）'}
+                          </div>
+                        `}
+                      </div>
+                      ${it.feedback ? `
+                        <div style="background: #FFFBEB; padding: 8px 12px; font-size: 0.82rem; color: #B45309; font-weight: 800; border-top: 1px solid #FDE68A;">
+                          📝 評語：${it.feedback}
+                        </div>
+                      ` : ''}
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+
+          const modalDiv = document.createElement('div');
+          modalDiv.innerHTML = modalHtml;
+          document.body.appendChild(modalDiv);
+          modalDiv.querySelector('#online-cmp-close').onclick = () => modalDiv.remove();
+        };
+
+        // 日期變更
+        datePicker.addEventListener('change', (e) => {
+          currentDate = e.target.value;
+          onlineData = loadOnlineData(currentDate);
+          saveOnlineData();
+          render();
+        });
+
+        // 新增作業
+        addSubBtn.addEventListener('click', () => {
+          const name = prompt('請輸入線上作業項目名稱（例：美勞撕貼畫拍照、國語第四課造句）：');
+          if (name && name.trim()) {
+            const clean = name.trim();
+            if (!onlineData.subjects.includes(clean)) {
+              onlineData.subjects.push(clean);
+              onlineData.activeSubject = clean;
+              if (!onlineData.records[clean]) onlineData.records[clean] = {};
+              saveOnlineData();
+              render();
+            }
+          }
+        });
+
+        // 刪除作業
+        delSubBtn.addEventListener('click', () => {
+          if (onlineData.subjects.length <= 1) {
+            alert('至少需保留一項線上作業項目！');
+            return;
+          }
+          if (confirm(`確定要刪除線上作業【${onlineData.activeSubject}】及其所有繳交紀錄嗎？`)) {
+            const idx = onlineData.subjects.indexOf(onlineData.activeSubject);
+            onlineData.subjects.splice(idx, 1);
+            delete onlineData.records[onlineData.activeSubject];
+            onlineData.activeSubject = onlineData.subjects[0];
+            saveOnlineData();
+            render();
+          }
+        });
+
+        // 複製未交名單
+        copyMissingBtn.addEventListener('click', () => {
+          ensureActive();
+          const sub = onlineData.activeSubject;
+          const rec = onlineData.records[sub];
+          const missing = roster.filter(name => !rec[name]);
+
+          let text = `【線上作業催繳提醒】${currentDate}\n`;
+          text += `作業項目：${sub}\n`;
+          text += `應繳：${roster.length} 人 / 已繳：${roster.length - missing.length} 人\n`;
+
+          if (missing.length === 0) {
+            text += `✨ 太棒了！全班線上作業已全數繳齊！\n`;
+          } else {
+            text += `⚠️ 尚未繳交 (${missing.length} 人)：\n${missing.join('、')}\n請利用平板盡速上傳繳交！\n`;
+          }
+
+          navigator.clipboard.writeText(text).then(() => {
+            alert('📋 線上作業催繳名單已複製至剪貼簿！\n\n' + text);
+          }).catch(() => {
+            prompt('請手動複製催繳名單：', text);
+          });
+        });
+
+        // 全域名冊更新
+        onRosterUpdated = (e) => {
+          const latest = getActiveData();
+          activeClass = latest.activeClass;
+          roster = latest.roster;
+          onlineData = loadOnlineData(currentDate);
+          render();
+        };
+        window.addEventListener('rosterUpdated', onRosterUpdated);
+
+        // 學生平板即時上傳監聽
         try {
           bc = new BroadcastChannel('puti_hw_channel');
           bc.onmessage = (e) => {
@@ -6501,7 +6718,7 @@ const ClassroomWidgets = {
                 if (window.soundEngine && typeof window.soundEngine.playCoin === 'function') {
                   window.soundEngine.playCoin();
                 }
-                hwData = loadHwDataForDate(currentDate);
+                onlineData = loadOnlineData(currentDate);
                 render();
               }
             }
@@ -6510,13 +6727,12 @@ const ClassroomWidgets = {
 
         const onStorageChange = (e) => {
           if (e.key && e.key.startsWith('puti_hw_')) {
-            hwData = loadHwDataForDate(currentDate);
+            onlineData = loadOnlineData(currentDate);
             render();
           }
         };
         window.addEventListener('storage', onStorageChange);
 
-        updateContactSelect();
         render();
       },
       onClose: () => {
@@ -6526,9 +6742,6 @@ const ClassroomWidgets = {
       }
     });
 
-    if (winObj && !winObj.setExternalTarget && typeof winInstance !== "undefined") {
-      winObj.setExternalTarget = winInstance.setExternalTarget;
-    }
     return winObj;
   },
 
