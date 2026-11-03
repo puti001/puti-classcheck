@@ -161,22 +161,44 @@ const ClassroomWidgets = {
     { id: 'user-guide', category: 'admin', name: '使用說明', icon: 'fa-circle-question', color: '#2563EB', desc: '點名作業通使用指南與班務小技巧' }
   ],
 
-  // =========================================================================
-  // 1. 家庭聯絡簿 (Homework & Contact Book)
+    // =========================================================================
+  // 家庭聯絡簿 (Homework & Contact Book) - 支援跨日期紀錄與作業收發連動
   // =========================================================================
   spawnContactBook(wm) {
-    const today = new Date();
-    const dateStr = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日`;
-    const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
-    const dayStr = days[today.getDay()];
+    let activeClass = 'default';
+    try {
+      const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
+      if (classData && classData.activeId) activeClass = classData.activeId;
+    } catch(e){}
 
-    const savedData = JSON.parse(localStorage.getItem('puti_hw_data') || 'null') || {
-      chinese: '國語習作第 42~45 頁',
-      math: '數學習作第 38 頁、訂正第四單元',
-      english: '英語課本 Unit 3 朗讀 3 遍',
-      other: '社會重點整理、閱讀課外書 20 分鐘',
-      memo: '明天是便服日，請記得帶彩色筆與剪刀！'
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    let currentDate = localStorage.getItem('puti_active_contact_date') || todayStr;
+
+    const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+    const getContactStorageKey = (d) => `puti_contact_${activeClass}_${d}`;
+
+    const loadContactData = (d) => {
+      let data = JSON.parse(localStorage.getItem(getContactStorageKey(d)) || 'null');
+      if (!data) {
+        // Fallback to legacy puti_hw_data for today
+        if (d === todayStr) {
+          data = JSON.parse(localStorage.getItem('puti_hw_data') || 'null') || {
+            chinese: '國語習作第 42~45 頁',
+            math: '數學習作第 38 頁、訂正第四單元',
+            english: '英語課本 Unit 3 朗讀 3 遍',
+            other: '社會重點整理、閱讀課外書 20 分鐘',
+            memo: '明天是便服日，請記得帶彩色筆與剪刀！'
+          };
+        } else {
+          data = { chinese: '', math: '', english: '', other: '', memo: '' };
+        }
+      }
+      return data;
     };
+
+    let savedData = loadContactData(currentDate);
 
     const defaultTags = ['國習 P.', '數習 P.', '社習 P.', '攜帶美勞用具', '發下成績單', '簽名回條', '明日聽寫考'];
     let customTags = JSON.parse(localStorage.getItem('puti_hw_custom_tags') || '[]');
@@ -185,16 +207,18 @@ const ClassroomWidgets = {
     let isZhuyin = localStorage.getItem('puti_hw_zhuyin') === 'true';
 
     const content = `
-      <div class="homework-container">
-        <!-- Header & Font Scale Toolbar -->
-        <div class="hw-header-bar">
-          <div class="hw-title-group">
-            <i class="fa-solid fa-book-open-reader"></i>
-            <span>家庭聯絡簿</span>
-            <span style="font-size: 0.85rem; color: #718096; font-weight: 700;">(${dateStr} ${dayStr})</span>
+      <div class="homework-container" style="display: flex; flex-direction: column; height: 100%; gap: 6px; user-select: none;">
+        <!-- Header & Date Toolbar -->
+        <div class="hw-header-bar" style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #E2E8F0; gap: 6px; flex-wrap: wrap;">
+          <div class="hw-title-group" style="display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-book-open-reader" style="color: #3A86FF;"></i>
+            <span style="font-weight: 900; font-size: 0.95rem; color: #1E293B;">家庭聯絡簿</span>
+            <input type="date" id="contact-date-picker" value="${currentDate}"
+              style="padding: 2px 6px; border-radius: 6px; border: 1.5px solid #CBD5E1; font-weight: 800; color: #334155; font-size: 0.82rem; outline: none; background: #FFF; cursor: pointer;">
+            <span id="contact-day-str" style="font-size: 0.8rem; color: #64748B; font-weight: 800;"></span>
           </div>
           <div style="display: flex; gap: 6px; align-items: center;">
-            <button class="scale-btn" id="hw-zhuyin-btn" style="font-size: 0.74rem; font-weight: 800; padding: 1px 8px; border-radius: 6px; border: 1.5px solid ${isZhuyin ? '#8B5CF6' : '#CBD5E1'}; color: ${isZhuyin ? '#6D28D9' : '#64748B'}; background: ${isZhuyin ? '#F5F3FF' : '#FFF'}; cursor: pointer; transition: all 0.2s;" title="切換低年級注音抄寫模式">
+            <button class="scale-btn" id="hw-zhuyin-btn" style="font-size: 0.74rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; border: 1.5px solid ${isZhuyin ? '#8B5CF6' : '#CBD5E1'}; color: ${isZhuyin ? '#6D28D9' : '#64748B'}; background: ${isZhuyin ? '#F5F3FF' : '#FFF'}; cursor: pointer;" title="切換低年級注音抄寫模式">
               ㄅ 注音模式
             </button>
             <div class="font-scale-controls">
@@ -202,51 +226,91 @@ const ClassroomWidgets = {
               <button class="font-scale-btn" id="hw-font-reset" title="重置字體">A</button>
               <button class="font-scale-btn" id="hw-font-plus" title="放大字體">A+</button>
             </div>
-            <button class="action-btn-secondary" id="hw-copy-btn" style="height: 28px; padding: 0 10px; font-size: 0.78rem;" title="複製文字貼至 LINE 群組">
-              <i class="fa-solid fa-copy"></i> 複製
+            <button class="action-btn-secondary" id="hw-copy-btn" style="height: 28px; padding: 0 8px; font-size: 0.78rem;" title="複製文字貼至 LINE 群組">
+              <i class="fa-solid fa-copy"></i> LINE 複製
             </button>
           </div>
         </div>
 
-        <!-- Quick Snippet Tags Bar (with Custom Tags & Add Button) -->
-        <div class="hw-quick-tags-bar" style="display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px 0; background: #FFF9DB; padding: 8px; border-radius: 10px; border: 1px dashed #FFE066;">
-          <div style="font-size: 0.76rem; font-weight: 800; color: #D9480F; display: flex; justify-content: space-between; align-items: center; width: 100%;">
-            <span><i class="fa-solid fa-bolt"></i> 快捷詞庫（點擊填入）：</span>
-            <button type="button" id="hw-add-tag-btn" style="background: #2B8A3E; color: white; border: none; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: bold; cursor: pointer;">
-              <i class="fa-solid fa-plus"></i> 新增自訂詞庫
-            </button>
-          </div>
-          <div id="hw-tags-chip-list" style="display: flex; flex-wrap: wrap; gap: 5px; width: 100%;"></div>
+        <!-- Quick Snippet Tags Bar -->
+        <div class="hw-quick-tags-bar" style="display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 4px 0; background: #FFF9DB; padding: 6px; border-radius: 10px; border: 1px dashed #FFE066;">
+          <div id="hw-tags-container" style="display: flex; flex-wrap: wrap; gap: 5px; align-items: center;"></div>
+          <button type="button" class="action-btn-secondary" id="hw-add-tag-btn" style="height: 26px; font-size: 0.74rem; padding: 0 8px; border-style: dashed;" title="新增自訂聯絡簿標籤">
+            <i class="fa-solid fa-plus"></i> 新標籤
+          </button>
         </div>
 
-        <!-- Subjects List -->
-        <div class="hw-list-box" id="hw-items-list">
-          <div class="hw-row">
-            <div class="hw-subject-badge" style="background: #FFE3E3; color: #E03131;">國語</div>
-            <input type="text" class="hw-content-input" id="hw-chinese" value="${savedData.chinese}" placeholder="點此輸入國語作業...">
-            <div class="hw-zhuyin-display" id="hw-zy-chinese" style="display: none; font-size: ${fontSize}rem;" title="點擊即可快速編輯"></div>
-          </div>
-          <div class="hw-row">
-            <div class="hw-subject-badge" style="background: #E7F5FF; color: #1971C2;">數學</div>
-            <input type="text" class="hw-content-input" id="hw-math" value="${savedData.math}" placeholder="點此輸入數學作業...">
-            <div class="hw-zhuyin-display" id="hw-zy-math" style="display: none; font-size: ${fontSize}rem;" title="點擊即可快速編輯"></div>
-          </div>
-          <div class="hw-row">
-            <div class="hw-subject-badge" style="background: #FFF3BF; color: #F59F00;">英語</div>
-            <input type="text" class="hw-content-input" id="hw-english" value="${savedData.english}" placeholder="點此輸入英語作業...">
-            <div class="hw-zhuyin-display" id="hw-zy-english" style="display: none; font-size: ${fontSize}rem;" title="點擊即可快速編輯"></div>
-          </div>
-          <div class="hw-row">
-            <div class="hw-subject-badge" style="background: #EBFBEE; color: #2F9E44;">其他</div>
-            <input type="text" class="hw-content-input" id="hw-other" value="${savedData.other}" placeholder="點此輸入其他科目/社團任務...">
-            <div class="hw-zhuyin-display" id="hw-zy-other" style="display: none; font-size: ${fontSize}rem;" title="點擊即可快速編輯"></div>
-          </div>
-          <div class="hw-memo-box">
-            <div style="font-weight: 800; font-size: 0.85rem; color: #D9480F; display: flex; align-items: center; gap: 4px;">
-              <i class="fa-solid fa-triangle-exclamation"></i> 重要通知與帶物叮嚀：
+        <!-- Homework Fields Grid with Linkage to Check Box -->
+        <div class="hw-fields-list" id="hw-fields-list" style="flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding: 2px;">
+          <!-- 國語 -->
+          <div class="hw-field-card" style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-weight: 800; font-size: 0.85rem; color: #EA580C; display: flex; align-items: center; gap: 5px;">
+                <i class="fa-solid fa-pen-nib"></i> 國語作業
+              </span>
+              <button type="button" class="contact-hw-link-btn" data-field="chinese" data-label="國語作業"
+                style="height: 24px; padding: 0 8px; font-size: 0.72rem; border-radius: 6px; background: #FFF7ED; border: 1.2px solid #FDBA74; color: #C2410C; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="呼叫作業收發通，立即登記繳交狀況">
+                <i class="fa-solid fa-box-archive"></i> 登記繳交
+              </button>
             </div>
-            <input type="text" class="hw-content-input" id="hw-memo" value="${savedData.memo}" placeholder="點此輸入明日帶物或家長叮嚀...">
-            <div class="hw-zhuyin-memo-display" id="hw-zy-memo" style="display: none; font-size: ${fontSize}rem;" title="點擊即可快速編輯"></div>
+            <input type="text" id="hw-chinese" class="hw-input" value="${savedData.chinese || ''}" placeholder="請輸入今日國語作業 (如：國語習作第 42~45 頁)" style="width: 100%; border: 1.5px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 1rem; outline: none; box-sizing: border-box;">
+            <div id="hw-zy-chinese" class="hw-zhuyin-view" style="display: none; padding: 6px; border: 1.5px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; min-height: 38px;"></div>
+          </div>
+
+          <!-- 數學 -->
+          <div class="hw-field-card" style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-weight: 800; font-size: 0.85rem; color: #2563EB; display: flex; align-items: center; gap: 5px;">
+                <i class="fa-solid fa-calculator"></i> 數學校訂作業
+              </span>
+              <button type="button" class="contact-hw-link-btn" data-field="math" data-label="數學校訂作業"
+                style="height: 24px; padding: 0 8px; font-size: 0.72rem; border-radius: 6px; background: #EFF6FF; border: 1.2px solid #93C5FD; color: #1D4ED8; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="呼叫作業收發通，立即登記繳交狀況">
+                <i class="fa-solid fa-box-archive"></i> 登記繳交
+              </button>
+            </div>
+            <input type="text" id="hw-math" class="hw-input" value="${savedData.math || ''}" placeholder="請輸入今日數學作業 (如：數學習作第 38 頁)" style="width: 100%; border: 1.5px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 1rem; outline: none; box-sizing: border-box;">
+            <div id="hw-zy-math" class="hw-zhuyin-view" style="display: none; padding: 6px; border: 1.5px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; min-height: 38px;"></div>
+          </div>
+
+          <!-- 英語 -->
+          <div class="hw-field-card" style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-weight: 800; font-size: 0.85rem; color: #059669; display: flex; align-items: center; gap: 5px;">
+                <i class="fa-solid fa-language"></i> 英語 / 專科作業
+              </span>
+              <button type="button" class="contact-hw-link-btn" data-field="english" data-label="英語作業"
+                style="height: 24px; padding: 0 8px; font-size: 0.72rem; border-radius: 6px; background: #ECFDF5; border: 1.2px solid #6EE7B7; color: #047857; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="呼叫作業收發通，立即登記繳交狀況">
+                <i class="fa-solid fa-box-archive"></i> 登記繳交
+              </button>
+            </div>
+            <input type="text" id="hw-english" class="hw-input" value="${savedData.english || ''}" placeholder="請輸入今日英語作業 (如：Unit 3 課本朗讀)" style="width: 100%; border: 1.5px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 1rem; outline: none; box-sizing: border-box;">
+            <div id="hw-zy-english" class="hw-zhuyin-view" style="display: none; padding: 6px; border: 1.5px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; min-height: 38px;"></div>
+          </div>
+
+          <!-- 其他 -->
+          <div class="hw-field-card" style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-weight: 800; font-size: 0.85rem; color: #7C3AED; display: flex; align-items: center; gap: 5px;">
+                <i class="fa-solid fa-shapes"></i> 其他 / 學習單
+              </span>
+              <button type="button" class="contact-hw-link-btn" data-field="other" data-label="其他作業"
+                style="height: 24px; padding: 0 8px; font-size: 0.72rem; border-radius: 6px; background: #F5F3FF; border: 1.2px solid #C4B5FD; color: #6D28D9; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="呼叫作業收發通，立即登記繳交狀況">
+                <i class="fa-solid fa-box-archive"></i> 登記繳交
+              </button>
+            </div>
+            <input type="text" id="hw-other" class="hw-input" value="${savedData.other || ''}" placeholder="其他作業或學習單 (如：美勞撕貼畫、閱讀 20 分鐘)" style="width: 100%; border: 1.5px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 1rem; outline: none; box-sizing: border-box;">
+            <div id="hw-zy-other" class="hw-zhuyin-view" style="display: none; padding: 6px; border: 1.5px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; min-height: 38px;"></div>
+          </div>
+
+          <!-- 重要備忘 -->
+          <div class="hw-field-card" style="background: #FFFDF5; border: 1.5px solid #FDE68A; border-radius: 12px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-weight: 800; font-size: 0.85rem; color: #B45309; display: flex; align-items: center; gap: 5px;">
+                <i class="fa-solid fa-bell"></i> 重要叮嚀 / 備忘事項
+              </span>
+            </div>
+            <input type="text" id="hw-memo" class="hw-input" value="${savedData.memo || ''}" placeholder="明日用品、回條繳交或通知 (如：明天便服日、交回條)" style="width: 100%; border: 1.5px solid #FCD34D; border-radius: 8px; padding: 6px 10px; font-size: 1rem; outline: none; box-sizing: border-box; background: #FFF;">
+            <div id="hw-zy-memo" class="hw-zhuyin-view" style="display: none; padding: 6px; border: 1.5px solid #FDE68A; border-radius: 8px; background: #FFFBEB; min-height: 38px;"></div>
           </div>
         </div>
       </div>
@@ -255,21 +319,26 @@ const ClassroomWidgets = {
     wm.createWindow({
       title: '家庭聯絡簿',
       icon: 'fa-book-open-reader',
-      iconColor: '#3A86FF',
-      width: 500,
-      height: 460,
+      width: 580,
+      height: 540,
       type: 'contact',
       contentHtml: content,
       onInit: (el) => {
+        const datePicker = el.querySelector('#contact-date-picker');
+        const dayStrEl = el.querySelector('#contact-day-str');
+        const zhuyinBtn = el.querySelector('#hw-zhuyin-btn');
+        const fontMinus = el.querySelector('#hw-font-minus');
+        const fontReset = el.querySelector('#hw-font-reset');
+        const fontPlus = el.querySelector('#hw-font-plus');
+        const copyBtn = el.querySelector('#hw-copy-btn');
+        const addTagBtn = el.querySelector('#hw-add-tag-btn');
+        const tagsContainer = el.querySelector('#hw-tags-container');
+
         const chineseIn = el.querySelector('#hw-chinese');
         const mathIn = el.querySelector('#hw-math');
         const englishIn = el.querySelector('#hw-english');
         const otherIn = el.querySelector('#hw-other');
         const memoIn = el.querySelector('#hw-memo');
-        const copyBtn = el.querySelector('#hw-copy-btn');
-        const zhuyinBtn = el.querySelector('#hw-zhuyin-btn');
-        const tagsContainer = el.querySelector('#hw-tags-chip-list');
-        const addTagBtn = el.querySelector('#hw-add-tag-btn');
 
         const zyChinese = el.querySelector('#hw-zy-chinese');
         const zyMath = el.querySelector('#hw-zy-math');
@@ -287,6 +356,14 @@ const ClassroomWidgets = {
 
         let activeInput = chineseIn;
 
+        const updateDayString = () => {
+          const dObj = new Date(currentDate);
+          if (!isNaN(dObj.getTime())) {
+            dayStrEl.textContent = `(${days[dObj.getDay()]})`;
+          }
+        };
+        updateDayString();
+
         fieldPairs.forEach(({ input, display }) => {
           input.addEventListener('focus', () => {
             activeInput = input;
@@ -302,13 +379,6 @@ const ClassroomWidgets = {
               display.style.display = display === zyMemo ? 'block' : 'flex';
             }
           });
-          input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && isZhuyin) {
-              input.blur();
-            }
-          });
-
-          // Click zhuyin view to edit that single field
           display.addEventListener('click', () => {
             display.style.display = 'none';
             input.style.display = 'block';
@@ -320,10 +390,10 @@ const ClassroomWidgets = {
         const updateZhuyinViews = () => {
           fieldPairs.forEach(({ input, display }) => {
             const val = input.value.trim();
-            if (val) {
+            if (val && window.PutiZhuyin) {
               display.innerHTML = window.PutiZhuyin.textToRubyHtml(val);
             } else {
-              display.innerHTML = '<span style="color: #94A3B8; font-style: italic;">（未填寫）</span>';
+              display.innerHTML = '<span style="color: #94A3B8; font-style: italic;">(未填寫)</span>';
             }
           });
         };
@@ -332,7 +402,7 @@ const ClassroomWidgets = {
           zhuyinBtn.style.border = isZhuyin ? '1.5px solid #8B5CF6' : '1.5px solid #CBD5E1';
           zhuyinBtn.style.color = isZhuyin ? '#6D28D9' : '#64748B';
           zhuyinBtn.style.background = isZhuyin ? '#F5F3FF' : '#FFF';
-          zhuyinBtn.innerHTML = isZhuyin ? '<i class="fa-solid fa-check"></i> ㄅ 注音開啟' : 'ㄅ 注音模式';
+          zhuyinBtn.innerHTML = isZhuyin ? '<i class="fa-solid fa-check"></i> ㄅ 注音中' : 'ㄅ 注音模式';
 
           if (isZhuyin) {
             updateZhuyinViews();
@@ -348,13 +418,6 @@ const ClassroomWidgets = {
           }
         };
 
-        zhuyinBtn.addEventListener('click', () => {
-          isZhuyin = !isZhuyin;
-          localStorage.setItem('puti_hw_zhuyin', isZhuyin);
-          applyZhuyinMode();
-          window.soundEngine.playPop();
-        });
-
         const save = () => {
           const data = {
             chinese: chineseIn.value.trim(),
@@ -363,140 +426,109 @@ const ClassroomWidgets = {
             other: otherIn.value.trim(),
             memo: memoIn.value.trim()
           };
-          localStorage.setItem('puti_hw_data', JSON.stringify(data));
+          localStorage.setItem(getContactStorageKey(currentDate), JSON.stringify(data));
+          localStorage.setItem('puti_active_contact_date', currentDate);
+          // Legacy backup for today
+          if (currentDate === todayStr) {
+            localStorage.setItem('puti_hw_data', JSON.stringify(data));
+          }
           if (isZhuyin) updateZhuyinViews();
         };
 
         fieldPairs.forEach(({ input }) => input.addEventListener('input', save));
 
-        // Render Tag Chips
+        datePicker.addEventListener('change', (e) => {
+          currentDate = e.target.value;
+          localStorage.setItem('puti_active_contact_date', currentDate);
+          updateDayString();
+          savedData = loadContactData(currentDate);
+          chineseIn.value = savedData.chinese || '';
+          mathIn.value = savedData.math || '';
+          englishIn.value = savedData.english || '';
+          otherIn.value = savedData.other || '';
+          memoIn.value = savedData.memo || '';
+          if (isZhuyin) updateZhuyinViews();
+        });
+
+        // 登記繳交連動按鈕：直接叫出作業收發通並切換至該項作業
+        el.querySelectorAll('.contact-hw-link-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const field = btn.getAttribute('data-field');
+            const input = el.querySelector(`#hw-${field}`);
+            const hwText = input ? input.value.trim() : '';
+
+            if (!hwText) {
+              alert('請先填寫該項作業的具體內容（例如：國語習作第 42~45 頁），再點擊登記繳交！');
+              if (input) input.focus();
+              return;
+            }
+
+            // 呼叫作業收發通，傳遞特定日期與作業名稱
+            ClassroomWidgets.spawnHomeworkCheck(wm, {
+              date: currentDate,
+              subject: hwText
+            });
+
+            if (window.soundEngine && typeof window.soundEngine.playPop === 'function') {
+              window.soundEngine.playPop();
+            }
+          });
+        });
+
+        // Tag Handling
         const renderTags = () => {
           tagsContainer.innerHTML = '';
-
-          // 1. Default Tags
           defaultTags.forEach(tag => {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'hw-tag-chip';
             btn.textContent = '+ ' + tag;
+            btn.style.cssText = 'height: 24px; font-size: 0.72rem; padding: 0 8px; border-radius: 999px; background: #FFF; border: 1px solid #CBD5E1; cursor: pointer; color: #475569; font-weight: 700;';
             btn.addEventListener('click', (e) => {
               e.preventDefault();
-              insertTagText(tag);
+              if (activeInput) {
+                const cur = activeInput.value;
+                activeInput.value = cur ? cur + ' ' + tag : tag;
+                save();
+                activeInput.focus();
+              }
             });
             tagsContainer.appendChild(btn);
           });
-
-          // 2. Custom Tags (with delete 'x')
-          customTags.forEach((tag, idx) => {
-            const wrapper = document.createElement('div');
-            wrapper.style.display = 'inline-flex';
-            wrapper.style.alignItems = 'center';
-            wrapper.style.borderRadius = '999px';
-            wrapper.style.background = '#EBFBEE';
-            wrapper.style.border = '1.5px solid #69DB7C';
-            wrapper.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
-
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'hw-tag-chip';
-            btn.style.background = 'transparent';
-            btn.style.border = 'none';
-            btn.style.color = '#2B8A3E';
-            btn.style.paddingRight = '4px';
-            btn.textContent = '+ ' + tag;
-            btn.addEventListener('click', (e) => {
-              e.preventDefault();
-              insertTagText(tag);
-            });
-
-            const delBtn = document.createElement('button');
-            delBtn.type = 'button';
-            delBtn.innerHTML = '&times;';
-            delBtn.title = '刪除此自訂詞庫';
-            delBtn.style.cssText = 'background:none; border:none; color:#FA5252; font-size:1rem; font-weight:bold; cursor:pointer; padding:0 6px 0 0; line-height:1;';
-            delBtn.addEventListener('click', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              customTags.splice(idx, 1);
-              localStorage.setItem('puti_hw_custom_tags', JSON.stringify(customTags));
-              renderTags();
-              window.soundEngine.playPop();
-            });
-
-            wrapper.appendChild(btn);
-            wrapper.appendChild(delBtn);
-            tagsContainer.appendChild(wrapper);
-          });
         };
-
-        const insertTagText = (tag) => {
-          const target = activeInput || memoIn;
-          const curVal = target.value;
-          const start = target.selectionStart ?? curVal.length;
-          const end = target.selectionEnd ?? curVal.length;
-          const needSpace = start > 0 && curVal[start - 1] !== ' ' && curVal[start - 1] !== '\n';
-          const insertText = (needSpace ? ' ' : '') + tag + ' ';
-
-          target.value = curVal.slice(0, start) + insertText + curVal.slice(end);
-          target.focus();
-          const newPos = start + insertText.length;
-          target.setSelectionRange(newPos, newPos);
-
-          save();
-          window.soundEngine.playPop();
-        };
-
-        // Add Custom Tag button
-        addTagBtn.addEventListener('click', () => {
-          const input = prompt('請輸入要新增的快捷詞庫（例如：訂正國習、帶泳具、交牛奶費、交回條）：');
-          if (input && input.trim()) {
-            const cleanTag = input.trim();
-            if (!customTags.includes(cleanTag) && !defaultTags.includes(cleanTag)) {
-              customTags.push(cleanTag);
-              localStorage.setItem('puti_hw_custom_tags', JSON.stringify(customTags));
-              renderTags();
-              window.soundEngine.playBell();
-            }
-          }
-        });
-
         renderTags();
 
         // Font scaling
-        const applyFontSize = () => {
-          fieldPairs.forEach(({ input, display }) => {
-            input.style.fontSize = fontSize + 'rem';
-            display.style.fontSize = fontSize + 'rem';
-          });
-        };
-
-        el.querySelector('#hw-font-plus').addEventListener('click', () => {
-          fontSize = Math.min(1.8, fontSize + 0.15);
-          applyFontSize();
+        fontPlus.addEventListener('click', () => {
+          fontSize = Math.min(1.4, fontSize + 0.1);
+          el.querySelectorAll('.hw-input, .hw-zhuyin-view').forEach(i => i.style.fontSize = fontSize + 'rem');
         });
-        el.querySelector('#hw-font-minus').addEventListener('click', () => {
-          fontSize = Math.max(0.85, fontSize - 0.15);
-          applyFontSize();
+        fontMinus.addEventListener('click', () => {
+          fontSize = Math.max(0.85, fontSize - 0.1);
+          el.querySelectorAll('.hw-input, .hw-zhuyin-view').forEach(i => i.style.fontSize = fontSize + 'rem');
         });
-        el.querySelector('#hw-font-reset').addEventListener('click', () => {
+        fontReset.addEventListener('click', () => {
           fontSize = 1.05;
-          applyFontSize();
+          el.querySelectorAll('.hw-input, .hw-zhuyin-view').forEach(i => i.style.fontSize = fontSize + 'rem');
         });
 
-        // Copy to clipboard for Line
+        // Copy LINE
         copyBtn.addEventListener('click', () => {
-          const text = `📋 【${dateStr} (${dayStr}) 聯絡簿】\n1. 國語：${chineseIn.value}\n2. 數學：${mathIn.value}\n3. 英語：${englishIn.value}\n4. 其他：${otherIn.value}\n🔔 提醒：${memoIn.value}`;
+          let text = `【家庭聯絡簿】${currentDate} ${dayStrEl.textContent}\n`;
+          if (chineseIn.value.trim()) text += `1. 國語：${chineseIn.value.trim()}\n`;
+          if (mathIn.value.trim()) text += `2. 數學：${mathIn.value.trim()}\n`;
+          if (englishIn.value.trim()) text += `3. 英語/專科：${englishIn.value.trim()}\n`;
+          if (otherIn.value.trim()) text += `4. 其他：${otherIn.value.trim()}\n`;
+          if (memoIn.value.trim()) text += `⭐ 重要叮嚀：${memoIn.value.trim()}\n`;
+
           navigator.clipboard.writeText(text).then(() => {
-            copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> 已複製';
-            window.soundEngine.playBell();
-            setTimeout(() => { copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i> 複製'; }, 1800);
+            alert('📋 今日家庭聯絡簿已複製至剪貼簿，可直接貼至 LINE 群組！\n\n' + text);
+          }).catch(() => {
+            prompt('請手動複製聯絡簿內容：', text);
           });
         });
 
-        // Initialize Zhuyin state
-        if (isZhuyin) {
-          applyZhuyinMode();
-        }
+        applyZhuyinMode();
       }
     });
   },
@@ -5249,10 +5281,10 @@ const ClassroomWidgets = {
     });
   },
 
+    // =========================================================================
+  // 作業收發通 (Homework Check & Collection Manager) - 支援指定日期與聯絡簿連動
   // =========================================================================
-  // 作業收發通 (Homework Check & Collection Manager)
-  // =========================================================================
-  spawnHomeworkCheck(wm) {
+  spawnHomeworkCheck(wm, initialOptions = {}) {
     let roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
     let activeClass = 'default';
     try {
@@ -5260,73 +5292,142 @@ const ClassroomWidgets = {
       if (classData && classData.activeId) activeClass = classData.activeId;
     } catch(e){}
 
-    const getHwStorageKey = () => `puti_hw_check_${activeClass}`;
-    let hwData = JSON.parse(localStorage.getItem(getHwStorageKey()) || 'null') || {
-      activeSubject: '數學習作',
-      subjects: ['數學習作', '國語習作', '社會習作', '美勞撕貼', '課堂學習單'],
-      records: {}
+    const todayStr = new Date().toISOString().split('T')[0];
+    let currentDate = initialOptions.date || localStorage.getItem('puti_active_hw_date') || todayStr;
+
+    const getHwStorageKey = (d) => `puti_hw_check_${activeClass}_${d}`;
+    const getContactStorageKey = (d) => `puti_contact_${activeClass}_${d}`;
+
+    // 檢查現有已開啟的作業收發視窗
+    let existingWin = null;
+    wm.windows.forEach(w => {
+      if (w.type === 'homework-check') existingWin = w;
+    });
+
+    if (existingWin) {
+      wm.bringToFront(existingWin);
+      if (existingWin.setExternalTarget && (initialOptions.date || initialOptions.subject)) {
+        existingWin.setExternalTarget(initialOptions.date || currentDate, initialOptions.subject);
+        return;
+      }
+    }
+
+    const loadHwDataForDate = (d) => {
+      let data = JSON.parse(localStorage.getItem(getHwStorageKey(d)) || 'null');
+      if (!data) {
+        // 從該日的聯絡簿自動萃取作業項目
+        let contactData = JSON.parse(localStorage.getItem(getContactStorageKey(d)) || 'null');
+        if (!contactData && d === todayStr) {
+          contactData = JSON.parse(localStorage.getItem('puti_hw_data') || 'null');
+        }
+
+        const autoSubjects = [];
+        if (contactData) {
+          if (contactData.chinese && contactData.chinese.trim()) autoSubjects.push(contactData.chinese.trim());
+          if (contactData.math && contactData.math.trim()) autoSubjects.push(contactData.math.trim());
+          if (contactData.english && contactData.english.trim()) autoSubjects.push(contactData.english.trim());
+          if (contactData.other && contactData.other.trim()) autoSubjects.push(contactData.other.trim());
+        }
+
+        data = {
+          subjects: autoSubjects.length > 0 ? autoSubjects : ['數學習作', '國語習作', '社會習作', '課堂學習單'],
+          activeSubject: autoSubjects.length > 0 ? autoSubjects[0] : '數學習作',
+          records: {}
+        };
+      }
+      return data;
     };
 
+    let hwData = loadHwDataForDate(currentDate);
+
+    // 若傳入指定作業項目，確保加入並設為選中
+    if (initialOptions.subject) {
+      const cleanSub = initialOptions.subject.trim();
+      if (!hwData.subjects.includes(cleanSub)) {
+        hwData.subjects.push(cleanSub);
+      }
+      hwData.activeSubject = cleanSub;
+      if (!hwData.records[cleanSub]) hwData.records[cleanSub] = {};
+    }
+
     const saveHwData = () => {
-      localStorage.setItem(getHwStorageKey(), JSON.stringify(hwData));
+      localStorage.setItem(getHwStorageKey(currentDate), JSON.stringify(hwData));
+      localStorage.setItem('puti_active_hw_date', currentDate);
     };
 
     const content = `
-      <div style="display: flex; flex-direction: column; height: 100%; gap: 10px; user-select: none;">
-        <!-- Subject Tabs & Actions Bar -->
-        <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 14px; border: 1.5px solid #E2E8F0; gap: 8px; flex-wrap: wrap;">
-          <div id="hw-tabs-container" style="display: flex; gap: 6px; overflow-x: auto; flex: 1; align-items: center; padding-bottom: 2px;">
+      <div class="homework-check-container" style="display: flex; flex-direction: column; height: 100%; gap: 8px; user-select: none;">
+        <!-- Top Toolbar: Date & Contact Link Selection -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #E2E8F0; gap: 6px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label style="font-size: 0.8rem; font-weight: 800; color: #475569;"><i class="fa-solid fa-calendar-day"></i> 登記日期:</label>
+            <input type="date" id="hw-check-date-picker" value="${currentDate}"
+              style="padding: 2px 6px; border-radius: 6px; border: 1.5px solid #CBD5E1; font-weight: 800; color: #334155; font-size: 0.82rem; outline: none; background: #FFF; cursor: pointer;">
+            <select id="hw-from-contact-select" style="max-width: 170px; padding: 2px 6px; border-radius: 6px; border: 1.5px solid #FFC078; font-weight: 800; color: #9A3412; background: #FFF7ED; font-size: 0.78rem; outline: none; cursor: pointer;" title="從指定日期的聯絡簿直接叫出作業項目">
+              <option value="">📖 載入聯絡簿作業...</option>
+            </select>
           </div>
-          <div style="display: flex; gap: 6px; align-items: center;">
-            <button type="button" class="action-btn-secondary" id="hw-add-subject-btn" style="height: 28px; padding: 0 8px; font-size: 0.74rem; border-style: dashed;" title="新增作業科目">
-              <i class="fa-solid fa-plus"></i> 新作業
+          <div style="display: flex; gap: 5px; align-items: center;">
+            <button type="button" class="action-btn-secondary" id="hw-add-subject-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem; border-style: dashed;" title="自訂新增作業項目">
+              <i class="fa-solid fa-plus"></i> 新增項目
             </button>
-            <button type="button" class="action-btn-secondary" id="hw-del-subject-btn" style="height: 28px; padding: 0 6px; font-size: 0.74rem; color: #EF4444;" title="刪除此作業項目">
+            <button type="button" class="action-btn-secondary" id="hw-del-subject-btn" style="height: 26px; padding: 0 6px; font-size: 0.74rem; color: #EF4444;" title="刪除此作業項目">
               <i class="fa-solid fa-trash"></i>
             </button>
           </div>
         </div>
 
+        <!-- Subject Tabs Bar -->
+        <div style="display: flex; align-items: center; background: #FFF; padding: 4px 6px; border-radius: 10px; border: 1px solid #E2E8F0; gap: 6px;">
+          <div id="hw-tabs-container" style="display: flex; gap: 5px; overflow-x: auto; flex: 1; align-items: center; padding-bottom: 2px;">
+          </div>
+        </div>
+
         <!-- Progress Bar & Batch Actions -->
-        <div style="display: flex; justify-content: space-between; align-items: center; background: #FFF9DB; padding: 8px 12px; border-radius: 12px; border: 1px solid #FFE066; gap: 10px;">
-          <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
-            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 800; color: #D9480F;">
-              <span id="hw-stat-subject-title">數學習作</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #FFF9DB; padding: 6px 12px; border-radius: 10px; border: 1px solid #FFE066; gap: 10px;">
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 3px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 800; color: #D9480F;">
+              <span id="hw-stat-subject-title" style="max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">數學習作</span>
               <span id="hw-stat-progress-text">已收 0 / 0 人 (0%)</span>
             </div>
-            <div style="height: 8px; background: #E9ECEF; border-radius: 4px; overflow: hidden;">
+            <div style="height: 7px; background: #E9ECEF; border-radius: 4px; overflow: hidden;">
               <div id="hw-stat-progress-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #10B981, #059669); transition: width 0.25s ease;"></div>
             </div>
           </div>
           <div style="display: flex; gap: 6px;">
-            <button type="button" class="action-btn-main" id="hw-all-check-btn" style="height: 28px; padding: 0 10px; font-size: 0.76rem; background: linear-gradient(135deg, #10B981, #059669);" title="全員已交">
-              <i class="fa-solid fa-check"></i> 全交
+            <button type="button" class="action-btn-main" id="hw-all-check-btn" style="height: 28px; padding: 0 10px; font-size: 0.76rem; background: linear-gradient(135deg, #10B981, #059669);" title="將全班標記為已繳">
+              <i class="fa-solid fa-check"></i> 全收
             </button>
-            <button type="button" class="action-btn-secondary" id="hw-copy-missing-btn" style="height: 28px; padding: 0 8px; font-size: 0.76rem; color: #D97706; font-weight: 800;" title="複製未交座號名單">
-              <i class="fa-solid fa-clipboard-list"></i> 催繳
+            <button type="button" class="action-btn-secondary" id="hw-copy-missing-btn" style="height: 28px; padding: 0 8px; font-size: 0.76rem; color: #D97706; font-weight: 800; border-color: #FCD34D;" title="複製未繳交學生名單（可直接發到 LINE 群催繳）">
+              <i class="fa-solid fa-copy"></i> 催繳名單
             </button>
           </div>
         </div>
 
-        <!-- Student Cards Grid -->
-        <div id="hw-students-grid" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; padding: 4px; align-content: start;">
+        <!-- Students Check Grid -->
+        <div id="hw-students-grid" style="flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 2px; overflow-y: auto;">
         </div>
 
-        <!-- Footer Helper -->
-        <div style="font-size: 0.75rem; color: #94A3B8; text-align: center;">
-          💡 點擊學生卡片即可立即切換【已繳交 (綠色打勾)】或【未繳交 (粉紅標記)】
+        <!-- Bottom Guidance -->
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: #64748B; background: #F8FAFC; padding: 3px 8px; border-radius: 8px;">
+          <span>💡 點擊學生卡片切換【已繳 / 未交】；上方切換日期可調閱任一天的聯絡簿作業繳交紀錄。</span>
+          <span>📦 支援拖曳右下角縮放，卡片等比放大</span>
         </div>
       </div>
     `;
 
-    wm.createWindow({
+    let resizeObserver = null;
+
+    const winObj = wm.createWindow({
       title: '作業收發通',
       icon: 'fa-box-archive',
-      width: 580,
-      height: 500,
+      width: 620,
+      height: 520,
       type: 'homework-check',
       contentHtml: content,
       onInit: (el) => {
+        const datePicker = el.querySelector('#hw-check-date-picker');
+        const contactSelect = el.querySelector('#hw-from-contact-select');
         const tabsContainer = el.querySelector('#hw-tabs-container');
         const grid = el.querySelector('#hw-students-grid');
         const addSubBtn = el.querySelector('#hw-add-subject-btn');
@@ -5337,9 +5438,57 @@ const ClassroomWidgets = {
         const progressText = el.querySelector('#hw-stat-progress-text');
         const progressBar = el.querySelector('#hw-stat-progress-bar');
 
+        // Dynamic Resize Scaling for Homework Check
+        const updateHwScale = () => {
+          const width = el.offsetWidth;
+          const height = el.offsetHeight;
+          const scale = Math.max(0.8, Math.min(2.5, Math.min(width / 560, height / 460)));
+          const nameFontSize = (0.86 * scale).toFixed(2) + 'rem';
+          const badgeFontSize = (0.72 * scale).toFixed(2) + 'rem';
+          const cardMinH = Math.round(54 * scale) + 'px';
+          const gapSize = Math.round(6 * scale) + 'px';
+
+          grid.style.gap = gapSize;
+          grid.querySelectorAll('.hw-check-card').forEach(c => {
+            c.style.minHeight = cardMinH;
+            const nameEl = c.querySelector('.hw-student-name');
+            if (nameEl) nameEl.style.fontSize = nameFontSize;
+            const badgeEl = c.querySelector('.hw-status-badge');
+            if (badgeEl) badgeEl.style.fontSize = badgeFontSize;
+          });
+        };
+
+        resizeObserver = new ResizeObserver(() => updateHwScale());
+        resizeObserver.observe(el);
+
+        const updateContactSelect = () => {
+          let contactData = JSON.parse(localStorage.getItem(getContactStorageKey(currentDate)) || 'null');
+          if (!contactData && currentDate === todayStr) {
+            contactData = JSON.parse(localStorage.getItem('puti_hw_data') || 'null');
+          }
+
+          contactSelect.innerHTML = '<option value="">📖 載入聯絡簿作業...</option>';
+          if (contactData) {
+            const list = [
+              { label: '國語', val: contactData.chinese },
+              { label: '數學', val: contactData.math },
+              { label: '英語', val: contactData.english },
+              { label: '其他', val: contactData.other }
+            ];
+            list.forEach(it => {
+              if (it.val && it.val.trim()) {
+                const opt = document.createElement('option');
+                opt.value = it.val.trim();
+                opt.textContent = `${it.label}: ${it.val.trim()}`;
+                contactSelect.appendChild(opt);
+              }
+            });
+          }
+        };
+
         const ensureActiveSubject = () => {
           if (!hwData.subjects || hwData.subjects.length === 0) {
-            hwData.subjects = ['今日作業'];
+            hwData.subjects = ['課堂作業'];
           }
           if (!hwData.activeSubject || !hwData.subjects.includes(hwData.activeSubject)) {
             hwData.activeSubject = hwData.subjects[0];
@@ -5358,7 +5507,8 @@ const ClassroomWidgets = {
             const doneCount = roster.filter(name => rec[name]).length;
 
             return `
-              <button type="button" class="hw-sub-tab ${isActive ? 'active' : ''}" data-sub="${sub}" style="height: 28px; padding: 0 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 800; border: 1.5px solid ${isActive ? '#F59E0B' : '#E2E8F0'}; background: ${isActive ? '#FEF3C7' : '#FFF'}; color: ${isActive ? '#B45309' : '#64748B'}; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;">
+              <button type="button" class="hw-sub-tab ${isActive ? 'active' : ''}" data-sub="${sub}"
+                style="height: 28px; padding: 0 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 800; border: 1.5px solid ${isActive ? '#F59E0B' : '#E2E8F0'}; background: ${isActive ? '#FEF3C7' : '#FFF'}; color: ${isActive ? '#B45309' : '#64748B'}; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;">
                 <span>${sub}</span>
                 <span style="font-size: 0.7rem; background: ${isActive ? '#FDE68A' : '#F1F5F9'}; padding: 1px 5px; border-radius: 6px;">${doneCount}/${roster.length}</span>
               </button>
@@ -5387,10 +5537,10 @@ const ClassroomWidgets = {
             if (isDone) doneCount++;
 
             return `
-              <div class="hw-check-card" data-name="${name}" style="background: ${isDone ? '#DCFCE7' : '#FFF1F2'}; border: 1.5px solid ${isDone ? '#86EFAC' : '#FECDD3'}; border-radius: 12px; padding: 8px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                <div style="font-size: 0.88rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${name}</div>
-                <span style="font-size: 0.72rem; font-weight: 900; background: ${isDone ? '#10B981' : '#F43F5E'}; color: #FFF; padding: 1px 7px; border-radius: 8px; line-height: 1.2;">
-                  ${isDone ? '✓ 已繳交' : '✕ 未交'}
+              <div class="hw-check-card" data-name="${name}" style="background: ${isDone ? '#DCFCE7' : '#FFF1F2'}; border: 1.5px solid ${isDone ? '#86EFAC' : '#FECDD3'}; border-radius: 12px; padding: 6px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 54px;">
+                <div class="hw-student-name" style="font-size: 0.86rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%;">${name}</div>
+                <span class="hw-status-badge" style="font-size: 0.72rem; font-weight: 900; background: ${isDone ? '#10B981' : '#F43F5E'}; color: #FFF; padding: 2px 8px; border-radius: 999px; line-height: 1.2;">
+                  ${isDone ? '✓ 已繳' : '✕ 未交'}
                 </span>
               </div>
             `;
@@ -5411,23 +5561,54 @@ const ClassroomWidgets = {
               render();
             });
           });
+
+          updateHwScale();
         };
 
-        const onRosterUpdated = (e) => {
-          if (e.detail && Array.isArray(e.detail)) {
-            roster = [...e.detail];
-            try {
-              const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
-              if (classData && classData.activeId) activeClass = classData.activeId;
-            } catch(err){}
-            hwData = JSON.parse(localStorage.getItem(getHwStorageKey()) || 'null') || hwData;
-            render();
+        // 外部呼叫切換日期與作業項目接口
+        winObj.setExternalTarget = (targetDate, targetSubject) => {
+          currentDate = targetDate;
+          datePicker.value = currentDate;
+          hwData = loadHwDataForDate(currentDate);
+
+          if (targetSubject) {
+            const clean = targetSubject.trim();
+            if (!hwData.subjects.includes(clean)) hwData.subjects.push(clean);
+            hwData.activeSubject = clean;
+            if (!hwData.records[clean]) hwData.records[clean] = {};
           }
+          saveHwData();
+          updateContactSelect();
+          render();
         };
-        window.addEventListener('rosterUpdated', onRosterUpdated);
 
+        // 日期變更
+        datePicker.addEventListener('change', (e) => {
+          currentDate = e.target.value;
+          hwData = loadHwDataForDate(currentDate);
+          saveHwData();
+          updateContactSelect();
+          render();
+        });
+
+        // 從聯絡簿選單挑選作業
+        contactSelect.addEventListener('change', (e) => {
+          const chosen = e.target.value;
+          if (chosen) {
+            if (!hwData.subjects.includes(chosen)) {
+              hwData.subjects.push(chosen);
+            }
+            hwData.activeSubject = chosen;
+            if (!hwData.records[chosen]) hwData.records[chosen] = {};
+            saveHwData();
+            render();
+            contactSelect.value = '';
+          }
+        });
+
+        // 新增作業
         addSubBtn.addEventListener('click', () => {
-          const name = prompt('請輸入新作業項目名稱（如：數習第 38 頁、美勞黏土）：');
+          const name = prompt('請輸入新作業項目名稱（例：數習第 38 頁、美勞撕貼畫）：');
           if (name && name.trim()) {
             const clean = name.trim();
             if (!hwData.subjects.includes(clean)) {
@@ -5440,55 +5621,70 @@ const ClassroomWidgets = {
           }
         });
 
+        // 刪除作業
         delSubBtn.addEventListener('click', () => {
           if (hwData.subjects.length <= 1) {
-            alert('至少保留一項作業項目！');
+            alert('至少需保留一項作業項目！');
             return;
           }
-          if (confirm(`確定要刪除作業【${hwData.activeSubject}】的紀錄嗎？`)) {
-            const toDel = hwData.activeSubject;
-            delete hwData.records[toDel];
-            hwData.subjects = hwData.subjects.filter(s => s !== toDel);
+          if (confirm(`確定要刪除作業項目【${hwData.activeSubject}】及其所有繳交紀錄嗎？`)) {
+            const idx = hwData.subjects.indexOf(hwData.activeSubject);
+            hwData.subjects.splice(idx, 1);
+            delete hwData.records[hwData.activeSubject];
             hwData.activeSubject = hwData.subjects[0];
             saveHwData();
             render();
           }
         });
 
+        // 一鍵全收
         allCheckBtn.addEventListener('click', () => {
-          const rec = hwData.records[hwData.activeSubject] || {};
+          const sub = hwData.activeSubject;
+          const rec = hwData.records[sub] || {};
+          const allDone = roster.every(name => !!rec[name]);
           roster.forEach(name => {
-            rec[name] = true;
+            rec[name] = !allDone;
           });
-          hwData.records[hwData.activeSubject] = rec;
-          if (window.soundEngine) window.soundEngine.playCoin();
+          if (window.soundEngine) {
+            if (typeof window.soundEngine.playCoin === 'function') window.soundEngine.playCoin();
+            else if (typeof window.soundEngine.playChime === 'function') window.soundEngine.playChime();
+          }
           saveHwData();
           render();
         });
 
+        // 複製催繳名單
         copyMissingBtn.addEventListener('click', () => {
           const sub = hwData.activeSubject;
           const rec = hwData.records[sub] || {};
           const missing = roster.filter(name => !rec[name]);
 
-          let text = `【作業催繳通報】📚 ${sub}\n`;
-          text += `應收：${roster.length} 人 / 已收：${roster.length - missing.length} 人\n`;
+          let text = `【作業收發催繳提醒】${currentDate}\n`;
+          text += `作業項目：${sub}\n`;
+          text += `應繳：${roster.length} 人 / 已繳：${roster.length - missing.length} 人\n`;
+
           if (missing.length === 0) {
-            text += `🎉 全班已全數繳齊，太棒了！\n`;
+            text += `✨ 太棒了！全班作業已全數繳齊！\n`;
           } else {
-            text += `⚠️ 尚未繳交 (${missing.length} 人)：\n${missing.join('、')}\n請儘速完成並繳交！\n`;
+            text += `⚠️ 尚未繳交 (${missing.length} 人)：\n${missing.join('、')}\n請家長協助提醒孩子攜帶並補交，感謝配合！\n`;
           }
 
           navigator.clipboard.writeText(text).then(() => {
-            alert('📋 作業催繳名單已複製至剪貼簿！可直接貼至 LINE 或黑板聯絡簿。\n\n' + text);
+            alert('📋 作業催繳名單已複製至剪貼簿，可直接貼至 LINE 或聯絡簿！\n\n' + text);
           }).catch(() => {
             prompt('請手動複製催繳名單：', text);
           });
         });
 
+        updateContactSelect();
         render();
+      },
+      onClose: () => {
+        if (resizeObserver) resizeObserver.disconnect();
       }
     });
+
+    return winObj;
   },
 
     // =========================================================================
