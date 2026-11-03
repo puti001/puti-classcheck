@@ -186,7 +186,6 @@ const ClassroomWidgets = {
         raw = JSON.parse(localStorage.getItem('puti_hw_data') || 'null');
       }
 
-      // 預設 3 項作業 + 攜帶物品 1 項
       const defaultItems = [
         { id: 'item_1', title: '作業1', content: '' },
         { id: 'item_2', title: '作業2', content: '' },
@@ -197,21 +196,31 @@ const ClassroomWidgets = {
       if (!raw) {
         return {
           items: defaultItems.map(it => ({ ...it, id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4) })),
-          memo: d === todayStr ? '明天請記得準時到校，晨讀時間檢驗作業！' : ''
+          memo: ''
         };
       }
 
-      // 如果是舊版物件（含 chinese, math, etc.），轉換為 items 陣列
+      // Convert legacy object format if needed
       if (!Array.isArray(raw.items)) {
         const converted = [];
-        if (raw.chinese !== undefined) converted.push({ id: 'item_c', title: '作業1', content: raw.chinese || '' });
-        if (raw.math !== undefined) converted.push({ id: 'item_m', title: '作業2', content: raw.math || '' });
-        if (raw.english !== undefined) converted.push({ id: 'item_e', title: '作業3', content: raw.english || '' });
-        if (raw.other !== undefined) converted.push({ id: 'item_o', title: '攜帶物品', content: raw.other || '' });
-        return {
+        if (raw.chinese !== undefined) converted.push({ id: 'item_1', title: '作業1', content: raw.chinese || '' });
+        if (raw.math !== undefined) converted.push({ id: 'item_2', title: '作業2', content: raw.math || '' });
+        if (raw.english !== undefined) converted.push({ id: 'item_3', title: '作業3', content: raw.english || '' });
+        if (raw.other !== undefined) converted.push({ id: 'item_4', title: '攜帶物品', content: raw.other || '' });
+        raw = {
           items: converted.length > 0 ? converted : defaultItems,
           memo: raw.memo || ''
         };
+      }
+
+      // Force sanitize any leftover subject names in user's localStorage
+      if (Array.isArray(raw.items)) {
+        raw.items.forEach((it, idx) => {
+          if (!it.title || it.title === '國語作業' || it.title.includes('國語')) it.title = '作業1';
+          else if (it.title === '數學校訂' || it.title.includes('數學')) it.title = '作業2';
+          else if (it.title === '英語專科' || it.title.includes('英語')) it.title = '作業3';
+          else if (it.title.includes('攜帶') || it.title.includes('物品')) it.title = '攜帶物品';
+        });
       }
 
       return raw;
@@ -5411,7 +5420,6 @@ const ClassroomWidgets = {
     const loadHwDataForDate = (d) => {
       let data = JSON.parse(localStorage.getItem(getHwStorageKey(d)) || 'null');
       if (!data) {
-        // 從該日的聯絡簿自動萃取作業項目
         let contactData = JSON.parse(localStorage.getItem(getContactStorageKey(d)) || 'null');
         if (!contactData && d === todayStr) {
           contactData = JSON.parse(localStorage.getItem('puti_hw_data') || 'null');
@@ -5419,10 +5427,11 @@ const ClassroomWidgets = {
 
         const autoSubjects = [];
         if (contactData) {
-          if (contactData.chinese && contactData.chinese.trim()) autoSubjects.push(contactData.chinese.trim());
-          if (contactData.math && contactData.math.trim()) autoSubjects.push(contactData.math.trim());
-          if (contactData.english && contactData.english.trim()) autoSubjects.push(contactData.english.trim());
-          if (contactData.other && contactData.other.trim()) autoSubjects.push(contactData.other.trim());
+          if (Array.isArray(contactData.items)) {
+            contactData.items.forEach(it => {
+              if (it.content && it.content.trim()) autoSubjects.push(it.content.trim());
+            });
+          }
         }
 
         data = {
@@ -5431,6 +5440,21 @@ const ClassroomWidgets = {
           records: {}
         };
       }
+
+      // Sanitize legacy hardcoded subjects in user's localStorage
+      if (data && Array.isArray(data.subjects)) {
+        data.subjects = data.subjects.map(s => {
+          if (s === '國語作業' || s === '國語習作') return '作業1';
+          if (s === '數學校訂' || s === '數學習作') return '作業2';
+          if (s === '英語專科') return '作業3';
+          if (s === '課堂學習單' || s === '美勞撕貼') return '攜帶物品';
+          return s;
+        });
+        if (data.activeSubject === '國語作業' || data.activeSubject === '國語習作') data.activeSubject = '作業1';
+        if (data.activeSubject === '數學校訂' || data.activeSubject === '數學習作') data.activeSubject = '作業2';
+        if (data.activeSubject === '英語專科') data.activeSubject = '作業3';
+      }
+
       return data;
     };
 
