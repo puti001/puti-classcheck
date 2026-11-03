@@ -301,7 +301,7 @@ const ClassroomWidgets = {
       height: 560,
       type: 'contact',
       contentHtml: content,
-      onInit: (el) => {
+      onInit: (el, winInstance) => {
         const datePicker = el.querySelector('#contact-date-picker');
         const dayStrEl = el.querySelector('#contact-day-str');
         const zhuyinBtn = el.querySelector('#hw-zhuyin-btn');
@@ -5386,8 +5386,8 @@ const ClassroomWidgets = {
       wm.bringToFront(existingWin);
       if (existingWin.setExternalTarget && (initialOptions.date || initialOptions.subject)) {
         existingWin.setExternalTarget(initialOptions.date || currentDate, initialOptions.subject);
-        return;
       }
+      return existingWin;
     }
 
     const loadHwDataForDate = (d) => {
@@ -5613,7 +5613,7 @@ const ClassroomWidgets = {
             const doneCount = roster.filter(name => rec[name]).length;
 
             return `
-              <button type="button" class="hw-sub-tab ${isActive ? 'active' : ''}" data-sub="${sub}"
+              <button type="button" class="hw-sub-tab ${isActive ? 'active' : ''}" data-sub="${encodeURIComponent(sub)}"
                 style="height: 28px; padding: 0 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 800; border: 1.5px solid ${isActive ? '#F59E0B' : '#E2E8F0'}; background: ${isActive ? '#FEF3C7' : '#FFF'}; color: ${isActive ? '#B45309' : '#64748B'}; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;">
                 <span>${sub}</span>
                 <span style="font-size: 0.7rem; background: ${isActive ? '#FDE68A' : '#F1F5F9'}; padding: 1px 5px; border-radius: 6px;">${doneCount}/${roster.length}</span>
@@ -5623,7 +5623,7 @@ const ClassroomWidgets = {
 
           tabsContainer.querySelectorAll('.hw-sub-tab').forEach(btn => {
             btn.addEventListener('click', () => {
-              hwData.activeSubject = btn.getAttribute('data-sub');
+              hwData.activeSubject = decodeURIComponent(btn.getAttribute('data-sub'));
               saveHwData();
               render();
             });
@@ -5672,7 +5672,7 @@ const ClassroomWidgets = {
         };
 
         // 外部呼叫切換日期與作業項目接口
-        winObj.setExternalTarget = (targetDate, targetSubject) => {
+        if (winInstance) winInstance.setExternalTarget = (targetDate, targetSubject) => {
           currentDate = targetDate;
           datePicker.value = currentDate;
           hwData = loadHwDataForDate(currentDate);
@@ -5790,6 +5790,7 @@ const ClassroomWidgets = {
       }
     });
 
+    if (winObj && !winObj.setExternalTarget && typeof winInstance !== "undefined") winObj.setExternalTarget = winInstance.setExternalTarget;
     return winObj;
   },
 
