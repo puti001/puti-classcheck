@@ -852,8 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
     wm.spawnCounter = 0;
     ClassroomWidgets.spawnAttendance(wm);
     setTimeout(() => ClassroomWidgets.spawnHomeworkCheck(wm), 100);
-    setTimeout(() => ClassroomWidgets.spawnSeatingChart(wm), 200);
-    setTimeout(() => ClassroomWidgets.spawnContactBook(wm), 300);
+    setTimeout(() => ClassroomWidgets.spawnContactBook(wm), 200);
   };
 
   spawnDefaultLayout();

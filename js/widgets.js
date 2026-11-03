@@ -4127,268 +4127,241 @@ const ClassroomWidgets = {
   // =========================================================================
   // 33. 段考日考試時程計時器 (Exam Schedule & Countdown Timer)
   // =========================================================================
+    // =========================================================================
+  // 使用說明 (User Guide) - Puti-AI 點名作業通專用完整手冊
+  // =========================================================================
   spawnUserGuide(wm) {
     const content = `
-      <div class="user-guide-container" style="display: flex; flex-direction: column; height: 100%; font-family: var(--font-base, system-ui); color: #1e293b;">
+      <div class="user-guide-container" style="display: flex; flex-direction: column; height: 100%; font-family: var(--font-base, system-ui); color: #1e293b; user-select: none;">
         <!-- Guide Tabs -->
         <div style="display: flex; border-bottom: 2px solid #e2e8f0; background: #f8fafc; border-radius: 8px 8px 0 0; padding: 4px 8px 0; gap: 4px; flex-shrink: 0; overflow-x: auto;">
-          <button class="guide-tab-btn active" data-tab="tab-welcome" style="padding: 6px 12px; border: none; background: transparent; font-weight: 800; font-size: 0.85rem; color: #2563EB; border-bottom: 3px solid #2563EB; cursor: pointer; white-space: nowrap;">🌟 快速上手</button>
-          <button class="guide-tab-btn" data-tab="tab-multi-class" style="padding: 6px 12px; border: none; background: transparent; font-weight: 700; font-size: 0.85rem; color: #64748b; cursor: pointer; white-space: nowrap;">🎓 多班級與名冊</button>
-          <button class="guide-tab-btn" data-tab="tab-all-tools" style="padding: 6px 12px; border: none; background: transparent; font-weight: 700; font-size: 0.85rem; color: #64748b; cursor: pointer; white-space: nowrap;">🛠️ 33項工具總覽</button>
+          <button class="guide-tab-btn active" data-tab="tab-welcome" style="padding: 6px 12px; border: none; background: transparent; font-weight: 800; font-size: 0.85rem; color: #2563EB; border-bottom: 3px solid #2563EB; cursor: pointer; white-space: nowrap;">🌟 系統簡介</button>
+          <button class="guide-tab-btn" data-tab="tab-attendance" style="padding: 6px 12px; border: none; background: transparent; font-weight: 700; font-size: 0.85rem; color: #64748b; cursor: pointer; white-space: nowrap;">📋 點名簿與備註</button>
+          <button class="guide-tab-btn" data-tab="tab-homework-contact" style="padding: 6px 12px; border: none; background: transparent; font-weight: 700; font-size: 0.85rem; color: #64748b; cursor: pointer; white-space: nowrap;">📦 聯絡簿 ✕ 作業收發</button>
+          <button class="guide-tab-btn" data-tab="tab-seating" style="padding: 6px 12px; border: none; background: transparent; font-weight: 700; font-size: 0.85rem; color: #64748b; cursor: pointer; white-space: nowrap;">🪑 班級排座技巧</button>
           <button class="guide-tab-btn" data-tab="tab-tools-vault" style="padding: 6px 12px; border: none; background: transparent; font-weight: 700; font-size: 0.85rem; color: #64748b; cursor: pointer; white-space: nowrap;">🎁 教學工具庫</button>
-          <button class="guide-tab-btn" data-tab="tab-feedback" style="padding: 6px 12px; border: none; background: transparent; font-weight: 700; font-size: 0.85rem; color: #64748b; cursor: pointer; white-space: nowrap;">📬 問題回報</button>
         </div>
 
         <!-- Tab Content Body -->
-        <div style="flex: 1; overflow-y: auto; padding: 14px; font-size: 0.9rem; line-height: 1.6;">
+        <div style="flex: 1; overflow-y: auto; padding: 14px; font-size: 0.88rem; line-height: 1.6;">
           
-          <!-- Tab 1: 快速上手 -->
+          <!-- Tab 1: 系統簡介 -->
           <div id="tab-welcome" class="guide-tab-pane" style="display: block;">
-            <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 10px; padding: 12px; margin-bottom: 12px; border: 1px solid #bfdbfe;">
-              <h3 style="margin: 0 0 4px; font-size: 1.1rem; color: #1e40af; display: flex; align-items: center; gap: 6px;">
-                <i class="fa-solid fa-chalkboard-user"></i> 歡迎使用 Puti-AI 教室大螢幕！
+            <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; padding: 14px; margin-bottom: 12px; border: 1.5px solid #bfdbfe;">
+              <h3 style="margin: 0 0 6px; font-size: 1.15rem; color: #1e40af; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-clipboard-check"></i> 歡迎使用 Puti-AI 點名作業通！
               </h3>
-              <p style="margin: 0; color: #3b82f6; font-size: 0.85rem;">專為智慧黑板、觸控大螢幕與現代課堂設計的自由浮動全能教學平台。</p>
+              <p style="margin: 0; color: #1e3a8a; font-size: 0.88rem; font-weight: 600;">
+                專為導師與科任老師打造的「每日班級事務」專用平台。完全獨立於上課遊戲大螢幕，免除複雜干擾，聚焦晨會點名、作業收發登記、家庭聯絡簿與班務座位管理。
+              </p>
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 10px;">
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
-                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">🖥️ 視距無憂：大螢幕全域字級</div>
-                <div style="color: #475569; font-size: 0.85rem;">點擊頂部「字級（標準 16 / 中 20 / 大 24 / 特大 28）」，針對 75~86 吋教室大螢幕等比自動縮放，教室最後一排學生依然看得一清二楚。</div>
-              </div>
-
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
-                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">🪄 一鍵情境切換與自訂</div>
-                <div style="color: #475569; font-size: 0.85rem;">內建「專注、小組競賽、放學」快捷佈局；任意擺放您習慣的工具視窗後，點擊頂部「+ 存情境」即可永久保存為專屬情境。</div>
-              </div>
-
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
-                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">🖼️ 12 款精美情境桌布與自訂背景</div>
-                <div style="color: #475569; font-size: 0.85rem;">點擊頂部「桌布」，內建教育科技 (預設)、黑板、海邊、天空、草原、花海、宇宙、銀河、山岳、海洋世界、呆萌狗仔、可愛小貓等 12 款主題，亦可自選上傳班級照片或輸入圖片網址。</div>
-              </div>
-
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
-                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">🪟 純淨桌面模式</div>
-                <div style="color: #475569; font-size: 0.85rem;">點擊頂部「純淨桌面」按鈕，可一鍵平滑淡出收起所有視窗，回歸黑板或美觀背景，隨時再點一次即可無損原狀還原。</div>
-              </div>
-
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
-                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">📱 課堂手機互動（免裝 App）</div>
-                <div style="color: #475569; font-size: 0.85rem;">課堂搶答神器與即時投票支援巨幅 QR Code 投影，學生手機或平板掃描立即連線作答，支援每台裝置一票防重複與即時開箱柱狀圖。</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Tab 2: 多班級與名冊管理 (重點新增) -->
-          <div id="tab-multi-class" class="guide-tab-pane" style="display: none;">
-            <div style="background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%); border-radius: 10px; padding: 12px; margin-bottom: 12px; border: 1px solid #fed7aa;">
-              <h3 style="margin: 0 0 4px; font-size: 1.1rem; color: #c2410c; display: flex; align-items: center; gap: 6px;">
-                <i class="fa-solid fa-graduation-cap"></i> 科任跑班與多班級管理指南
-              </h3>
-              <p style="margin: 0; color: #ea580c; font-size: 0.85rem;">專為科任跑班教師、跨班共用教室電腦量身打造，名冊抽籤分組完全連動！</p>
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
-                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">🏫 頂部選單一秒切換班級</div>
-                <div style="color: #475569; font-size: 0.85rem;">頂部工具列直接提供「班級下拉選單」（如 501 班、502 班、503 班），科任老師進到不同班級教室，點選切換即可立即載入該班學生名冊。</div>
-              </div>
-
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
-                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">🔄 抽籤／分組／個人計分全域連動</div>
-                <div style="color: #475569; font-size: 0.85rem;">只要切換班級，桌面上的<strong>「幸運抽籤」</strong>、<strong>「隨機分組」</strong>、<strong>「個人計分板」</strong>全部即時同步連動更新，不需每個視窗單獨重設。</div>
-              </div>
-
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
-                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">💾 匯出與匯入多班備份（跨電腦攜帶技巧）</div>
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">🌅 晨會開工最佳流程</div>
                 <div style="color: #475569; font-size: 0.85rem;">
-                  點擊頂部「名冊」進入管理彈窗，底部提供<strong>「匯出多班」</strong>與<strong>「匯入多班」</strong>：
-                  <ul style="margin: 4px 0 0; padding-left: 18px;">
-                    <li><strong>教師最佳實踐</strong>：在個人辦公室電腦把任教各班名冊輸入完畢，點擊「匯出多班」取得備份檔（JSON）；到各教室電腦打開網頁，點「匯入多班」，1 秒還原所有班級！</li>
-                    <li><strong>多師共用教室電腦</strong>：若同台電腦有班導師與科任老師使用，建議各自命名專屬班級（如「501英語」、「501導師」），或上下課時使用匯出/匯入檔，資料互不干擾。</li>
-                  </ul>
+                  開機載入即自動佈署<strong>【課堂點名簿】</strong>、<strong>【作業收發通】</strong>與<strong>【家庭聯絡簿】</strong>三大日常工具。座位表則收納於底部工具列，需要排座時隨開隨用，保持桌面寬敞乾淨。
                 </div>
               </div>
 
-              <div style="background: #fff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; background: #f0fdf4;">
-                <div style="font-weight: 800; color: #166534; margin-bottom: 4px;">🔒 100% 本機端儲存・零個資上網</div>
-                <div style="color: #15803d; font-size: 0.85rem;">
-                  本網站所有學生姓名、座號、班級名冊與計分積分，<strong>完全儲存在您目前電腦的瀏覽器本機端 (LocalStorage)</strong>。網站絕不會將任何學生資料上傳至任何雲端伺服器或第三方資料庫，校園個資與學生隱私安全 100% 放心無虞！
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">🔍 大螢幕無損拖曳等比放大</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  點名卡片與座位表全面搭載 <strong>動態尺寸監聽（ResizeObserver）</strong>。只要按住視窗右下角縮放手柄往外拉大，內部的學生姓名、座號、出勤假別等資訊會<strong>等比自動放大</strong>，在 75~86 吋電子白板上字字清晰。
+                </div>
+              </div>
+
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">🎓 多班級與名冊一鍵切換</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  頂部提供班級切換選單與<strong>【名冊】</strong>編輯器。可建立多個班級名冊（如五年一班、五年二班），支援從 Excel 直接整排複製學生名單貼入，點名簿、座位表與作業箱即刻連動更新。
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Tab 3: 33 項工具總覽 (每個工具皆有重點介紹) -->
-          <div id="tab-all-tools" class="guide-tab-pane" style="display: none;">
-            <div style="font-size: 0.82rem; color: #64748b; margin-bottom: 10px;">全站共收錄 33 項教學小工具，點擊底部工具列或「更多工具」即可自由開啟：</div>
-            
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-              
-              <!-- 時間排程類 -->
-              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px;">
-                <div style="font-weight: 800; color: #2563EB; font-size: 0.85rem; margin-bottom: 4px;">⏰ 時間與考程</div>
-                <ul style="margin: 0; padding-left: 18px; font-size: 0.82rem; color: #334155; line-height: 1.5;">
-                  <li><strong>計時器</strong>：正數與倒數計時，支援自訂時間輸入、快捷按鈕微調與醒目鐘響。</li>
-                  <li><strong>視覺計時器</strong>：動態扇形面積消減，支援自訂時間與快捷分鐘，直觀呈現剩餘時間，低年級超適用。</li>
-                  <li><strong>競賽碼錶</strong>：高精度毫秒計時、記圈與單次競賽排名記錄。</li>
-                  <li><strong>數位時鐘</strong>：即時大字鐘，支援 12/24 小時制與年月日顯示。</li>
-                  <li><strong>教室月曆</strong>：當月月曆大字展示，清楚標記今日與重要日期。</li>
-                  <li><strong>班級功課表</strong>：週一至週五課堂課表，當天科目自動發光高亮。</li>
-                  <li><strong>作息流程表</strong>：課堂步驟管理，支援一鍵套用「四學模式」與「段考日」。</li>
-                  <li><strong>考試日程計時器</strong>：大科目字體、等寬防抖動倒數、具備輸入檢查防呆（時間先後順序驗證），自動判定下課準備與考試中。</li>
-                  <li><strong>重要日子倒數</strong>：段考、畢業典禮、校慶等重要日子天數動態倒數。</li>
-                </ul>
+          <!-- Tab 2: 點名簿與備註 -->
+          <div id="tab-attendance" class="guide-tab-pane" style="display: none;">
+            <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-radius: 12px; padding: 12px; margin-bottom: 12px; border: 1.5px solid #a7f3d0;">
+              <h3 style="margin: 0 0 4px; font-size: 1.05rem; color: #065f46; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-user-check"></i> 課堂點名簿：8 大假別、註記備忘與歷史紀錄
+              </h3>
+              <p style="margin: 0; color: #047857; font-size: 0.84rem;">全面精準剔除「缺席」，符合學校請假常態分類，支援歷史查詢與報表匯出。</p>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">🎯 8 大假別循環切換</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  點擊學生卡片即可依序快速輪替假別：<br>
+                  <span style="font-weight: 800; color: #166534;">【出席】</span> ➔ 
+                  <span style="font-weight: 800; color: #1E40AF;">【病假】</span> ➔ 
+                  <span style="font-weight: 800; color: #9A3412;">【事假】</span> ➔ 
+                  <span style="font-weight: 800; color: #6B21A8;">【公假】</span> ➔ 
+                  <span style="font-weight: 800; color: #334155;">【喪假】</span> ➔ 
+                  <span style="font-weight: 800; color: #854D0E;">【遲到】</span> ➔ 
+                  <span style="font-weight: 800; color: #B91C1C;">【早退】</span> ➔ 
+                  <span style="font-weight: 800; color: #475569;">【其他】</span>。
+                </div>
               </div>
 
-              <!-- 課堂常規與秩序 -->
-              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px;">
-                <div style="font-weight: 800; color: #DC2626; font-size: 0.85rem; margin-bottom: 4px;">🚦 常規與秩序管理</div>
-                <ul style="margin: 0; padding-left: 18px; font-size: 0.82rem; color: #334155; line-height: 1.5;">
-                  <li><strong>紅綠燈</strong>：紅（安靜暫停）、黃（注意準備）、綠（開始行動）三色信號切換。</li>
-                  <li><strong>工作符號</strong>：安靜自學、悄悄話、小組討論、全班發言四種互動指引。</li>
-                  <li><strong>課堂分貝儀</strong>：即時監測麥克風環境音量，超標發出溫和提醒維持安靜。</li>
-                  <li><strong>教室白噪音</strong>：內建雨聲、森林、海浪、咖啡廳等放鬆音效，營造專注氛圍。</li>
-                </ul>
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">📝 學生出勤「註記」功能</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  點擊學生卡片右上角的 <strong>📝 圖示</strong>（或在卡片上按滑鼠右鍵），即可為該學生填寫具體原因（如：<em>發燒就醫、第4節早退看牙、市模範生公假</em>）。卡片下方會直接浮出備忘小氣泡，複製 LINE 通報時也會一併帶出！
+                </div>
               </div>
 
-              <!-- 課堂互動與評量 -->
-              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px;">
-                <div style="font-weight: 800; color: #D97706; font-size: 0.85rem; margin-bottom: 4px;">🎯 互動、評量與激勵</div>
-                <ul style="margin: 0; padding-left: 18px; font-size: 0.82rem; color: #334155; line-height: 1.5;">
-                  <li><strong>幸運抽籤</strong>：隨機抽取學生，自動連動當前班級名冊，具備不重複抽籤與動畫音效。</li>
-                  <li><strong>隨機分組</strong>：全班名冊一鍵打散分組，自動連動當前班級，支援自訂組數與名單導出。</li>
-                  <li><strong>小組記分板</strong>：分組競賽專用，一鍵加減分、即時排名與奪冠音效。</li>
-                  <li><strong>個人計分器</strong>：全班個人積分累積，連動當前班級名單，快速給分與榮譽榜。</li>
-                  <li><strong>課堂搶答神器</strong>：手機掃描巨幅 QR Code 即連線，大螢幕顯示實際連線狀態，教師按開始搶答解鎖，大螢幕唱名加分。</li>
-                  <li><strong>課堂即時投票</strong>：單選多選、盲投開箱長條圖、題庫匯入匯出，支援每台裝置限投一票。</li>
-                  <li><strong>骰子硬幣</strong>：超大 3D 立體骰子（1~3 顆）與 3D 翻轉金幣動畫，機率與課堂裁決超有儀式感。</li>
-                  <li><strong>猜拳對決</strong>：剪刀石頭布對戰動畫，課堂裁決破冰專用。</li>
-                  <li><strong>課堂獎勵貼紙</strong>：大螢幕拖曳蓋章（棒、讚、100分），即時激勵學生。</li>
-                </ul>
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">📜 歷史紀錄與請假累計總表</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  點擊工具列<strong>【📜 歷史紀錄】</strong>：<br>
+                  1. <strong>每日出勤歷程</strong>：列出所有點名日期的實到人數與未出席名單，點擊「載入該日」可調閱或補登。<br>
+                  2. <strong>學生請假累計表</strong>：統計全班每位學生整個學期的請假總次數與歷次備註。
+                </div>
               </div>
 
-              <!-- 板書、展示與多媒體 -->
-              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px;">
-                <div style="font-weight: 800; color: #059669; font-size: 0.85rem; margin-bottom: 4px;">🎨 板書、展示與多媒體</div>
-                <ul style="margin: 0; padding-left: 18px; font-size: 0.82rem; color: #334155; line-height: 1.5;">
-                  <li><strong>塗鴉白板</strong>：全功能畫筆、橡皮擦、多色選取與格線背景，可匯出圖片。</li>
-                  <li><strong>家庭聯絡簿</strong>：預設作業清單與快捷詞庫，支援字體放大，一鍵複製格式化文字傳 LINE 群組。</li>
-                  <li><strong>跑馬燈廣播</strong>：橫向大字滾動通知，傳達重要課堂公告。</li>
-                  <li><strong>電子便利貼</strong>：彩色備忘貼紙，隨手記錄教學重點或臨時事項。</li>
-                  <li><strong>圖片展示</strong>：拖曳或上傳教材圖片，在大螢幕自由縮放展示。</li>
-                  <li><strong>PDF 閱讀展示</strong>：教材講義與學習單 PDF 直接在大螢幕翻頁瀏覽。</li>
-                  <li><strong>快速 QR Code</strong>：輸入任何網址立即產生巨幅 QR Code 供學生掃描。</li>
-                  <li><strong>超連結導航</strong>：預設常用教學資源捷徑，一鍵直達外部教學網站。</li>
-                  <li><strong>課堂影片播放</strong>：本機影片或 YouTube 影片彈窗播放。</li>
-                  <li><strong>網頁嵌入 (Embed)</strong>：將教學互動網頁或測驗透過 iframe 嵌入大螢幕。</li>
-                  <li><strong>實物投影相機</strong>：調用視訊鏡頭或實物投影機，大螢幕投影展示作業。</li>
-                </ul>
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">📤 Excel 匯出與備份還原</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  點擊<strong>【匯出】</strong>可輸出包含 UTF-8 BOM 的 CSV 檔案，Excel 開啟絕不亂碼，方便列印呈報學務處；亦支援匯出/匯入完整 JSON 備份檔，資料永久不遺失。
+                </div>
               </div>
-
             </div>
           </div>
 
-          <!-- Tab 4: 教學工具庫 (遵照要求：純粹宣告與連結，取消自推精彩收錄) -->
+          <!-- Tab 3: 聯絡簿 ✕ 作業收發連動 -->
+          <div id="tab-homework-contact" class="guide-tab-pane" style="display: none;">
+            <div style="background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%); border-radius: 12px; padding: 12px; margin-bottom: 12px; border: 1.5px solid #fed7aa;">
+              <h3 style="margin: 0 0 4px; font-size: 1.05rem; color: #c2410c; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-arrows-split-up-and-left"></i> 家庭聯絡簿 ✕ 作業收發通：依日期雙向連動
+              </h3>
+              <p style="margin: 0; color: #ea580c; font-size: 0.84rem;">自訂作業項目，一鍵跨視窗登記繳交情形與快速催繳。</p>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">📖 聯絡簿項目自由自訂</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  系統預設<strong>【作業1】</strong>、<strong>【作業2】</strong>、<strong>【作業3】</strong>與<strong>【攜帶物品】</strong>。標題皆可自由點擊修改，並可點擊下方<strong>【➕ 新增聯絡簿項目】</strong>無限擴充。
+                </div>
+              </div>
+
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">📦 每一項皆可「一鍵登記繳交」</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  聯絡簿每列作業右側皆有<strong>【📦 登記繳交】</strong>按鈕。點擊後會<strong>直接叫出／聚焦「作業收發通」</strong>，並自動將該日期與該項作業帶入分頁，立刻登記全班繳交或攜帶狀況！
+                </div>
+              </div>
+
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">📅 作業箱反向調閱歷史作業</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  在「作業收發通」切換任一日期，點擊<strong>【📖 載入聯絡簿項目】</strong>下拉選單，會自動讀取該日聯絡簿的所有作業與攜帶物品，隨時可回頭核對歷史繳交紀錄。
+                </div>
+              </div>
+
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">📢 LINE 催繳名單一鍵發送</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  點擊<strong>【📋 催繳名單】</strong>，自動複製格式化缺交通報（含作業名稱、尚未繳交座號名單），直接貼入班級家長群組，收發作業省時高效。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 4: 班級排座技巧 -->
+          <div id="tab-seating" class="guide-tab-pane" style="display: none;">
+            <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 12px; margin-bottom: 12px; border: 1.5px solid #86efac;">
+              <h3 style="margin: 0 0 4px; font-size: 1.05rem; color: #166534; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-border-all"></i> 班級座位表：純排座獨立功能
+              </h3>
+              <p style="margin: 0; color: #15803d; font-size: 0.84rem;">完全獨立於點名簿，專注於班級座位調配與大螢幕排座。</p>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">🖐️ 拖曳對調（Drag & Drop）</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  滑鼠或觸控直接按住任一張學生桌子拖到目標位置放開，兩位學生立即交換座位（空桌亦可直接換入）。
+                </div>
+              </div>
+
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">📱 大螢幕推薦：點選對調（Tap-to-Swap）</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  在電子白板上如果長按拖曳不順暢，點擊上方<strong>【點選對調】</strong>按鈕，依序點選兩張桌子即可瞬間交換位置。
+                </div>
+              </div>
+
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px;">🔀 多種排座輔助工具</div>
+                <div style="color: #475569; font-size: 0.85rem;">
+                  * <strong>5 欄 / 6 欄 / 7 欄 切換</strong>：配合班級桌椅格局快速重整欄數。<br>
+                  * <strong>前後對調</strong>：前後排整班垂直對調換位。<br>
+                  * <strong>隨機排座</strong>：全班隨機打散分配座位。<br>
+                  * <strong>依號排列</strong>：一鍵復原為座號 1~30 順序。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 5: 教學工具庫與版權 -->
           <div id="tab-tools-vault" class="guide-tab-pane" style="display: none;">
-            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 20px 16px; text-align: center; margin-top: 10px;">
-              <div style="font-size: 1.3rem; font-weight: 900; color: #92400e; margin-bottom: 12px;">
-                📚 Puti-AI 教學工具庫
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 18px 16px; text-align: center; margin-top: 6px;">
+              <div style="font-size: 1.2rem; font-weight: 900; color: #92400e; margin-bottom: 10px;">
+                🎁 Puti-AI 教學工具庫
               </div>
-              <p style="margin: 0 0 16px; color: #78350f; font-size: 0.95rem; line-height: 1.7;">
+              <p style="margin: 0 0 14px; color: #78350f; font-size: 0.9rem; line-height: 1.7;">
                 屏東縣後庄國小黃朝榮老師作品，免費分享，歡迎擴散推廣，嚴禁商用與任何侵權、不尊重著作權的行為
               </p>
-              <div style="font-size: 1rem; font-weight: 800; margin-top: 14px;">
-                更多 Puti-AI 教學工具請：
-                <a href="https://padlet.com/clongwh/puti_ai_tools" target="_blank" style="display: inline-block; background: #d97706; color: #fff; padding: 8px 22px; border-radius: 24px; text-decoration: none; font-weight: bold; margin-left: 6px; box-shadow: 0 3px 8px rgba(217, 119, 6, 0.35); transition: background 0.2s;">
+              <div style="font-size: 0.95rem; font-weight: 800; margin-top: 12px;">
+                更多 Puti-AI 教學工具：
+                <a href="https://padlet.com/clongwh/puti_ai_tools" target="_blank" rel="noopener noreferrer" style="display: inline-block; background: #d97706; color: #fff; padding: 6px 18px; border-radius: 20px; text-decoration: none; font-weight: bold; margin-left: 6px; box-shadow: 0 3px 8px rgba(217, 119, 6, 0.35);">
                   點此前往
                 </a>
               </div>
             </div>
           </div>
 
-          <!-- Tab 5: 問題回報 -->
-          <div id="tab-feedback" class="guide-tab-pane" style="display: none;">
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; text-align: center; margin-top: 10px;">
-              <div style="font-size: 2.2rem; color: #3b82f6; margin-bottom: 6px;">
-                <i class="fa-solid fa-envelope-open-text"></i>
-              </div>
-              <h3 style="margin: 0 0 6px; font-size: 1.15rem; color: #0f172a;">問題回報與教學建議</h3>
-              <p style="margin: 0 0 16px; color: #64748b; font-size: 0.88rem; line-height: 1.6;">
-                如果您在教學現場使用過程中遇到任何問題、或有新的課堂小工具需求，歡迎隨時來信交流！
-              </p>
-
-              <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; display: inline-flex; align-items: center; gap: 10px; margin-bottom: 16px;">
-                <span style="font-family: monospace; font-size: 1.05rem; font-weight: 800; color: #1e293b;">clongwh@gmail.com</span>
-                <button id="guide-copy-email-btn" style="padding: 4px 12px; border-radius: 6px; border: 1px solid #94a3b8; background: #f1f5f9; cursor: pointer; font-size: 0.82rem; font-weight: 600;">📋 複製信箱</button>
-              </div>
-
-              <div>
-                <a href="mailto:clongwh@gmail.com?subject=%E3%80%90Puti-AI%20%E6%95%99%E5%AE%A4%E5%A4%A7%E8%9E%A2%E5%B9%95%E3%80%91%E5%95%8F%E9%A1%8C%E5%9B%9E%E5%A0%B1%E8%88%87%E5%BB%BA%E8%AD%B0" style="display: inline-block; padding: 10px 24px; background: #2563EB; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 800; font-size: 0.92rem; box-shadow: 0 3px 8px rgba(37, 99, 235, 0.3);">
-                  <i class="fa-solid fa-paper-plane"></i> 立即寄信聯絡作者
-                </a>
-              </div>
-              <div id="guide-copy-tip" style="margin-top: 10px; font-size: 0.82rem; color: #16a34a; font-weight: 700; height: 1.2em;"></div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Bottom Footer in Guide -->
-        <div style="padding: 8px 14px; background: #f1f5f9; border-top: 1px solid #e2e8f0; font-size: 0.75rem; color: #64748b; text-align: center; border-radius: 0 0 8px 8px;">
-          屏東縣後庄國小黃朝榮老師作品，免費分享，歡迎擴散推廣，嚴禁商用與任何侵權、不尊重著作權的行為
         </div>
       </div>
     `;
 
     wm.createWindow({
-      title: '使用說明與教學工具庫',
+      title: '使用說明',
       icon: 'fa-circle-question',
       iconColor: '#2563EB',
-      width: 640,
-      height: 560,
-      minWidth: 420,
-      minHeight: 400,
-            type: 'user-guide',
+      width: 620,
+      height: 520,
+      type: 'user-guide',
       contentHtml: content,
-      onInit: (winEl) => {
-        const body = winEl.querySelector('.window-body') || winEl;
-        const tabs = body.querySelectorAll('.guide-tab-btn');
-        const panes = body.querySelectorAll('.guide-tab-pane');
-        const copyBtn = body.querySelector('#guide-copy-email-btn');
-        const copyTip = body.querySelector('#guide-copy-tip');
+      onInit: (el) => {
+        const tabBtns = el.querySelectorAll('.guide-tab-btn');
+        const tabPanes = el.querySelectorAll('.guide-tab-pane');
 
-        tabs.forEach(tab => {
-          tab.addEventListener('click', () => {
-            tabs.forEach(t => {
-              t.classList.remove('active');
-              t.style.color = '#64748b';
-              t.style.borderBottom = 'none';
+        tabBtns.forEach(btn => {
+          btn.addEventListener('click', () => {
+            const targetTab = btn.getAttribute('data-tab');
+
+            tabBtns.forEach(b => {
+              b.classList.remove('active');
+              b.style.color = '#64748b';
+              b.style.borderBottom = 'none';
+              b.style.fontWeight = '700';
             });
-            panes.forEach(p => p.style.display = 'none');
+            btn.classList.add('active');
+            btn.style.color = '#2563EB';
+            btn.style.borderBottom = '3px solid #2563EB';
+            btn.style.fontWeight = '800';
 
-            tab.classList.add('active');
-            tab.style.color = '#2563EB';
-            tab.style.borderBottom = '3px solid #2563EB';
+            tabPanes.forEach(p => p.style.display = 'none');
+            const activePane = el.querySelector('#' + targetTab);
+            if (activePane) activePane.style.display = 'block';
 
-            const targetId = tab.getAttribute('data-tab');
-            const targetPane = body.querySelector('#' + targetId);
-            if (targetPane) targetPane.style.display = 'block';
+            if (window.soundEngine) window.soundEngine.playTick();
           });
         });
-
-        if (copyBtn) {
-          copyBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText('clongwh@gmail.com').then(() => {
-              if (copyTip) {
-                copyTip.textContent = '✓ 已複製信箱地址 (clongwh@gmail.com)';
-                setTimeout(() => { if (copyTip) copyTip.textContent = ''; }, 3000);
-              }
-            }).catch(() => {
-              if (copyTip) copyTip.textContent = '信箱地址：clongwh@gmail.com';
-            });
-          });
-        }
       }
     });
   },
