@@ -5904,13 +5904,26 @@ const ClassroomWidgets = {
     };
 
     const content = `
-      <div class="online-homework-container" style="display: flex; flex-direction: column; height: 100%; gap: 8px; user-select: none;">
+      <div class="online-homework-container" style="display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 6px; user-select: none; overflow: hidden;">
         <!-- Top Toolbar -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #E2E8F0; gap: 6px; flex-wrap: wrap;">
-          <div style="display: flex; align-items: center; gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <label style="font-size: 0.8rem; font-weight: 800; color: #475569;"><i class="fa-solid fa-calendar-day"></i> 作業日期:</label>
             <input type="date" id="online-hw-date-picker" value="${currentDate}"
               style="padding: 2px 6px; border-radius: 6px; border: 1.5px solid #CBD5E1; font-weight: 800; color: #334155; font-size: 0.82rem; outline: none; background: #FFF; cursor: pointer;">
+            
+            <!-- 彈性直欄切換 -->
+            <div style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 800; color: #475569; margin-left: 4px;">
+              <span><i class="fa-solid fa-table-columns"></i> 欄數:</span>
+              <select id="online-hw-cols-select" style="border: 1.5px solid #CBD5E1; border-radius: 6px; padding: 2px 6px; font-weight: 800; color: #334155; background: #FFF; cursor: pointer; font-size: 0.78rem;">
+                <option value="auto">智慧適應</option>
+                <option value="5">5 欄 (舊版)</option>
+                <option value="6" selected>6 欄 (30人全覽推薦)</option>
+                <option value="7">7 欄</option>
+                <option value="8">8 欄</option>
+                <option value="10">10 欄 (寬螢幕)</option>
+              </select>
+            </div>
           </div>
           <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
             <!-- 學生平板掃碼上傳 QR Code -->
@@ -5975,7 +5988,7 @@ const ClassroomWidgets = {
         </div>
 
         <!-- Students Check Grid -->
-        <div id="online-hw-students-grid" style="flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 2px; overflow-y: auto;">
+        <div id="online-hw-students-grid" style="flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 4px 6px 36px 4px; overflow-y: auto; align-content: start;">
         </div>
 
         <!-- Bottom Guidance -->
@@ -5994,8 +6007,10 @@ const ClassroomWidgets = {
       title: '線上作業 (平板上傳 ╳ 紅筆批改 ╳ AI助教)',
       icon: 'fa-cloud-arrow-up',
       iconColor: '#6366F1',
-      width: 640,
-      height: 540,
+      width: 780,
+      height: 560,
+      minWidth: 480,
+      minHeight: 380,
       type: 'online-homework',
       contentHtml: content,
       onInit: (el) => {
@@ -6019,15 +6034,48 @@ const ClassroomWidgets = {
         let isCompareMode = false;
         let selectedForCompare = [];
 
+        const colsSelect = el.querySelector('#online-hw-cols-select');
+        let userCols = localStorage.getItem('puti_online_hw_cols') || '6';
+        if (colsSelect) {
+          colsSelect.value = userCols;
+          colsSelect.addEventListener('change', (e) => {
+            userCols = e.target.value;
+            localStorage.setItem('puti_online_hw_cols', userCols);
+            updateScale();
+          });
+        }
+
+        const applyGridCols = () => {
+          let cols = 6;
+          const width = el.offsetWidth;
+          if (userCols === 'auto') {
+            if (width >= 1400) cols = 8;
+            else if (width >= 1100) cols = 7;
+            else if (width >= 800) cols = 6;
+            else if (width >= 600) cols = 5;
+            else cols = 4;
+          } else {
+            cols = parseInt(userCols, 10) || 6;
+          }
+          grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+          return cols;
+        };
+
         const updateScale = () => {
           const width = el.offsetWidth;
           const height = el.offsetHeight;
-          const scale = Math.max(0.8, Math.min(2.5, Math.min(width / 560, height / 460)));
-          grid.style.gap = Math.round(6 * scale) + 'px';
+          const cols = applyGridCols();
+          const scale = Math.max(0.75, Math.min(1.7, Math.min(width / (cols * 110), height / 500)));
+          grid.style.gap = Math.round(5 * scale) + 'px';
           grid.querySelectorAll('.online-hw-card').forEach(c => {
-            c.style.minHeight = Math.round(54 * scale) + 'px';
+            c.style.minHeight = Math.round(48 * scale) + 'px';
+            c.style.padding = `${Math.round(4 * scale)}px ${Math.round(3 * scale)}px`;
             const nameEl = c.querySelector('.online-student-name');
-            if (nameEl) nameEl.style.fontSize = (0.86 * scale).toFixed(2) + 'rem';
+            if (nameEl) nameEl.style.fontSize = Math.max(0.75, Math.min(1.2, 0.82 * scale)).toFixed(2) + 'rem';
+            const btnEl = c.querySelector('.online-toggle-btn');
+            if (btnEl) btnEl.style.fontSize = Math.max(0.66, Math.min(0.95, 0.7 * scale)).toFixed(2) + 'rem';
+            const revEl = c.querySelector('.online-review-badge');
+            if (revEl) revEl.style.fontSize = Math.max(0.62, Math.min(0.85, 0.65 * scale)).toFixed(2) + 'rem';
           });
         };
 
@@ -6093,7 +6141,7 @@ const ClassroomWidgets = {
 
             return `
               <div class="online-hw-card ${isCompared ? 'compared-selected' : ''}" data-name="${name}"
-                style="background: ${isDone ? '#EEF2FF' : '#FFF1F2'}; border: 1.5px solid ${isCompared ? '#8B5CF6' : (isDone ? '#A5B4FC' : '#FECDD3')}; border-radius: 12px; padding: 6px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 3px; min-height: 54px; position: relative;">
+                style="background: ${isDone ? '#EEF2FF' : '#FFF1F2'}; border: 1.5px solid ${isCompared ? '#8B5CF6' : (isDone ? '#A5B4FC' : '#FECDD3')}; border-radius: 12px; padding: 4px 3px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 2px; min-height: 48px; position: relative;">
                 
                 ${isCompareMode ? `
                   <div style="position: absolute; top: 4px; left: 4px; z-index: 2;">
@@ -6115,7 +6163,7 @@ const ClassroomWidgets = {
                   <button type="button" class="online-toggle-btn" style="border: none; font-size: 0.72rem; font-weight: 900; background: ${isDone ? '#10B981' : '#F43F5E'}; color: #FFF; padding: 2px 8px; border-radius: 999px; line-height: 1.2; cursor: pointer;" title="點擊直接切換【已繳/未交】">
                     ${isDone ? '✓ 已繳' : '✕ 未交'}
                   </button>
-                  <span style="font-size: 0.66rem; font-weight: 800; background: #6366F1; color: #FFF; padding: 2px 6px; border-radius: 6px;">
+                  <span class="online-review-badge" style="font-size: 0.66rem; font-weight: 800; background: #6366F1; color: #FFF; padding: 2px 6px; border-radius: 6px;">
                     檢閱/批改
                   </span>
                 </div>
