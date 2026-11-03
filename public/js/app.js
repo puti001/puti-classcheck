@@ -15,14 +15,6 @@ document.addEventListener('DOMContentLoaded', () => {
     'seating': () => ClassroomWidgets.spawnSeatingChart(wm),
     'contact': () => ClassroomWidgets.spawnContactBook(wm),
     'timetable': () => ClassroomWidgets.spawnTimetable(wm),
-    'days-countdown': () => ClassroomWidgets.spawnDaysCountdown(wm),
-    'announcement': () => ClassroomWidgets.spawnAnnouncement(wm),
-    'picker': () => ClassroomWidgets.spawnPicker(wm),
-    'timer': () => ClassroomWidgets.spawnTimer(wm),
-    'clock': () => ClassroomWidgets.spawnClock(wm),
-    'sticky': () => ClassroomWidgets.spawnStickyNote(wm),
-    'pdf': () => ClassroomWidgets.spawnPDFViewer(wm),
-    'hyperlink': () => ClassroomWidgets.spawnHyperlink(wm),
     'user-guide': () => ClassroomWidgets.spawnUserGuide(wm)
   };
 
@@ -685,11 +677,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'dock-homework-check': () => ClassroomWidgets.spawnHomeworkCheck(wm),
     'dock-seating': () => ClassroomWidgets.spawnSeatingChart(wm),
     'dock-contact': () => ClassroomWidgets.spawnContactBook(wm),
-    'dock-timetable': () => ClassroomWidgets.spawnTimetable(wm),
-    'dock-days-countdown': () => ClassroomWidgets.spawnDaysCountdown(wm),
-    'dock-announcement': () => ClassroomWidgets.spawnAnnouncement(wm),
-    'dock-picker': () => ClassroomWidgets.spawnPicker(wm),
-    'dock-timer': () => ClassroomWidgets.spawnTimer(wm)
+    'dock-timetable': () => ClassroomWidgets.spawnTimetable(wm)
   };
 
   Object.keys(dockActions).forEach(id => {
@@ -732,15 +720,12 @@ document.addEventListener('DOMContentLoaded', () => {
       ClassroomWidgets.spawnAttendance(wm);
       setTimeout(() => ClassroomWidgets.spawnHomeworkCheck(wm), 80);
       setTimeout(() => ClassroomWidgets.spawnContactBook(wm), 160);
-      setTimeout(() => ClassroomWidgets.spawnClock(wm), 240);
     } else if (scenario === 'seating') {
       ClassroomWidgets.spawnSeatingChart(wm);
       setTimeout(() => ClassroomWidgets.spawnTimetable(wm), 100);
-      setTimeout(() => ClassroomWidgets.spawnContactBook(wm), 200);
     } else if (scenario === 'dismissal') {
       ClassroomWidgets.spawnContactBook(wm);
-      setTimeout(() => ClassroomWidgets.spawnAnnouncement(wm), 100);
-      setTimeout(() => ClassroomWidgets.spawnDaysCountdown(wm), 200);
+      setTimeout(() => ClassroomWidgets.spawnHomeworkCheck(wm), 100);
     }
   };
 
@@ -867,8 +852,8 @@ document.addEventListener('DOMContentLoaded', () => {
     wm.spawnCounter = 0;
     ClassroomWidgets.spawnAttendance(wm);
     setTimeout(() => ClassroomWidgets.spawnHomeworkCheck(wm), 100);
-    setTimeout(() => ClassroomWidgets.spawnContactBook(wm), 200);
-    setTimeout(() => ClassroomWidgets.spawnClock(wm), 300);
+    setTimeout(() => ClassroomWidgets.spawnSeatingChart(wm), 200);
+    setTimeout(() => ClassroomWidgets.spawnContactBook(wm), 300);
   };
 
   spawnDefaultLayout();

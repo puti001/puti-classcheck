@@ -48,7 +48,7 @@
         <span style="font-size: 0.74rem; font-weight: 800; color: #C2410C;"><i class="fa-solid fa-wand-magic-sparkles"></i> 班務情境：</span>
         <button class="scale-btn active" id="scen-morning" style="color: #059669; font-weight: 800; background: #ECFDF5; border: 1.5px solid #A7F3D0;" title="一鍵開啟晨會點名、作業收發與聯絡簿">📋 晨會點名收簿</button>
         <button class="scale-btn" id="scen-seating" style="color: #1D4ED8; font-weight: 800;" title="一鍵開啟座位表、功課表">🪑 班務排座</button>
-        <button class="scale-btn" id="scen-dismissal" style="color: #C2410C; font-weight: 800;" title="一鍵開啟聯絡簿、黑板公告與重要倒數">🎒 放學聯絡總結</button>
+        <button class="scale-btn" id="scen-dismissal" style="color: #C2410C; font-weight: 800;" title="一鍵開啟聯絡簿與作業收發">🎒 放學聯絡收發</button>
         <div id="custom-scenarios-bar" style="display: inline-flex; gap: 4px; align-items: center;"></div>
         <button class="scale-btn" id="scen-save-current" style="color: #2B8A3E; font-weight: 800;" title="將目前桌面擺設儲存為新情境"><i class="fa-solid fa-plus"></i> 存情境</button>
         <button class="scale-btn" id="scen-manage-btn" style="color: #495057;" title="管理自訂情境"><i class="fa-solid fa-gear"></i></button>
@@ -116,23 +116,6 @@
         <i class="fa-solid fa-calendar-week" style="color: #8B5CF6;"></i>
         <span>功課表</span>
       </button>
-      <button class="dock-item" id="dock-days-countdown" title="重要日子倒數">
-        <i class="fa-solid fa-calendar-check" style="color: #E11D48;"></i>
-        <span>倒數日</span>
-      </button>
-      <button class="dock-item" id="dock-announcement" title="班務大公告板">
-        <i class="fa-solid fa-chalkboard" style="color: #475569;"></i>
-        <span>大公告</span>
-      </button>
-      <button class="dock-item" id="dock-picker" title="班級抽籤選人">
-        <i class="fa-solid fa-bullseye" style="color: #FF9F1C;"></i>
-        <span>抽籤選人</span>
-      </button>
-      <button class="dock-item" id="dock-timer" title="作息倒數計時">
-        <i class="fa-solid fa-hourglass-half" style="color: #EF4444;"></i>
-        <span>計時器</span>
-      </button>
-
       <div class="dock-divider"></div>
 
       <!-- More Tools Drawer Launcher -->
@@ -178,12 +161,7 @@
           <input type="text" id="widget-search-input" placeholder="搜尋工具名稱或關鍵字 (如：聯絡簿、搶答、投票、PDF...)">
         </div>
         <div class="category-tabs" id="widget-category-tabs">
-          <button class="cat-pill active" data-cat="all">全部工具</button>
-          <button class="cat-pill" data-cat="time">⏱️ 時間計畫</button>
-          <button class="cat-pill" data-cat="order">📢 秩序經營</button>
-          <button class="cat-pill" data-cat="interactive">🎲 互動遊戲</button>
-          <button class="cat-pill" data-cat="media">📝 繪圖圖像</button>
-          <button class="cat-pill" data-cat="integration">🌐 多媒體整合</button>
+          <button class="cat-pill active" data-cat="all">全部班務工具</button>
         </div>
       </div>
 

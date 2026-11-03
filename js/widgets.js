@@ -153,21 +153,12 @@ window.PutiZhuyin = {
 const ClassroomWidgets = {
   // Registry metadata for the "More Tools" drawer/modal
   registry: [
-    // 📋 導師班務核心
-    { id: 'attendance', category: 'admin', name: '課堂點名簿', icon: 'fa-user-check', color: '#10B981', desc: '全班出勤點名、一鍵全員到齊、六態循環標記、複製LINE出勤通報' },
-    { id: 'homework-check', category: 'admin', name: '作業收發通', icon: 'fa-box-archive', color: '#F59E0B', desc: '各科作業繳交點收、一鍵全員收齊、進度百分比、複製未交催繳名單' },
-    { id: 'seating', category: 'admin', name: '智慧座位出勤表', icon: 'fa-border-all', color: '#3B82F6', desc: '教室全覽座位圖、同步出勤燈號、座位快速換位、支援直接點擊標記' },
-    { id: 'contact', category: 'admin', name: '家庭聯絡簿', icon: 'fa-book-open-reader', color: '#3A86FF', desc: '每日各科作業清單、帶物提醒、字級放大、一鍵複製LINE格式' },
-    { id: 'timetable', category: 'admin', name: '班級功課表', icon: 'fa-calendar-week', color: '#8B5CF6', desc: '週一至週五功課表、今日課程自動高亮、科目快捷晶片填寫' },
-    { id: 'days-countdown', category: 'admin', name: '重要日子倒數', icon: 'fa-calendar-check', color: '#E11D48', desc: '倒數段考、校外教學、畢業典禮、寒暑假等重要日子天數' },
-    { id: 'announcement', category: 'admin', name: '班務大公告板', icon: 'fa-chalkboard', color: '#2D3748', desc: '醒目大字黑板公告，支援 A+/A- 字體無級縮放' },
-    { id: 'picker', category: 'admin', name: '班級抽籤選人', icon: 'fa-bullseye', color: '#FF9F1C', desc: '值日生、差勤公差、幹部隨機抽籤，防重複機制' },
-    { id: 'timer', category: 'admin', name: '作息倒數計時器', icon: 'fa-hourglass-half', color: '#EF4444', desc: '早自習、午休、打掃時間倒數計時與提示鈴' },
-    { id: 'clock', category: 'admin', name: '時鐘與日曆', icon: 'fa-clock', color: '#0284C7', desc: '大字時間、即時秒數與今天國曆農曆日期' },
-    { id: 'sticky', category: 'admin', name: '班務便條紙', icon: 'fa-note-sticky', color: '#F59E0B', desc: '備忘待辦事項，支援粉彩四色切換' },
-    { id: 'pdf', category: 'admin', name: '通知單/講義閱覽', icon: 'fa-file-pdf', color: '#DC2626', desc: '拖曳載入學校行政通知單或考卷檔案展示' },
-    { id: 'hyperlink', category: 'admin', name: '常用班務網站捷徑', icon: 'fa-arrow-up-right-from-square', color: '#2563EB', desc: '校務行政系統、親師生平台快速跳轉' },
-    { id: 'user-guide', category: 'utility', name: '使用說明', icon: 'fa-circle-question', color: '#2563EB', desc: '點名作業通使用指南與班務小技巧' }
+    { id: 'attendance', category: 'admin', name: '課堂點名簿', icon: 'fa-user-check', color: '#10B981', desc: '全班出勤點名、一鍵全到復原、六種假別標記、複製LINE出勤日報' },
+    { id: 'homework-check', category: 'admin', name: '作業收發通', icon: 'fa-box-archive', color: '#F59E0B', desc: '各科作業繳交點收、一鍵全收復原、進度百分比、複製未交催繳清單' },
+    { id: 'seating', category: 'admin', name: '智慧座位出勤表', icon: 'fa-border-all', color: '#3B82F6', desc: '雙向聯動點名、支援拖曳對調、點選對調、欄數切換與前後翻轉' },
+    { id: 'contact', category: 'admin', name: '家庭聯絡簿', icon: 'fa-book-open-reader', color: '#3A86FF', desc: '每日各科作業清單、自訂快捷標籤、字級放大、一鍵複製LINE格式' },
+    { id: 'timetable', category: 'admin', name: '班級功課表', icon: 'fa-calendar-week', color: '#8B5CF6', desc: '週一至週五課堂科目表、當日課程自動高亮、課前預備提醒' },
+    { id: 'user-guide', category: 'admin', name: '使用說明', icon: 'fa-circle-question', color: '#2563EB', desc: '點名作業通使用指南與班務小技巧' }
   ],
 
   // =========================================================================
