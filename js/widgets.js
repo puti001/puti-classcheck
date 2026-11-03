@@ -161,8 +161,8 @@ const ClassroomWidgets = {
     { id: 'user-guide', category: 'admin', name: '使用說明', icon: 'fa-circle-question', color: '#2563EB', desc: '點名作業通使用指南與班務小技巧' }
   ],
 
-    // =========================================================================
-  // 家庭聯絡簿 (Homework & Contact Book) - 支援跨日期紀錄與作業收發連動
+      // =========================================================================
+  // 家庭聯絡簿 (Homework & Contact Book) - 使用者自由自訂項目、動態增減與登記繳交連動
   // =========================================================================
   spawnContactBook(wm) {
     let activeClass = 'default';
@@ -179,28 +179,52 @@ const ClassroomWidgets = {
 
     const getContactStorageKey = (d) => `puti_contact_${activeClass}_${d}`;
 
+    // 載入資料（相容舊版 chinese/math/english/other，並轉為動態項目陣列）
     const loadContactData = (d) => {
-      let data = JSON.parse(localStorage.getItem(getContactStorageKey(d)) || 'null');
-      if (!data) {
-        // Fallback to legacy puti_hw_data for today
-        if (d === todayStr) {
-          data = JSON.parse(localStorage.getItem('puti_hw_data') || 'null') || {
-            chinese: '國語習作第 42~45 頁',
-            math: '數學習作第 38 頁、訂正第四單元',
-            english: '英語課本 Unit 3 朗讀 3 遍',
-            other: '社會重點整理、閱讀課外書 20 分鐘',
-            memo: '明天是便服日，請記得帶彩色筆與剪刀！'
-          };
-        } else {
-          data = { chinese: '', math: '', english: '', other: '', memo: '' };
-        }
+      let raw = JSON.parse(localStorage.getItem(getContactStorageKey(d)) || 'null');
+      if (!raw && d === todayStr) {
+        raw = JSON.parse(localStorage.getItem('puti_hw_data') || 'null');
       }
-      return data;
+
+      // 預設 3 項作業 + 攜帶物品 1 項
+      const defaultItems = [
+        { id: 'item_1', title: '國語作業', content: '國語習作第 42~45 頁' },
+        { id: 'item_2', title: '數學校訂', content: '數學習作第 38 頁、訂正第四單元' },
+        { id: 'item_3', title: '英語專科', content: '英語課本 Unit 3 朗讀 3 遍' },
+        { id: 'item_4', title: '攜帶物品', content: '明天便服日，請帶彩色筆與剪刀、回條' }
+      ];
+
+      if (!raw) {
+        return {
+          items: d === todayStr ? defaultItems : [
+            { id: 'item_1', title: '第一項作業', content: '' },
+            { id: 'item_2', title: '第二項作業', content: '' },
+            { id: 'item_3', title: '第三項作業', content: '' },
+            { id: 'item_4', title: '攜帶物品', content: '' }
+          ],
+          memo: d === todayStr ? '明天請記得準時到校，晨讀時間檢驗作業！' : ''
+        };
+      }
+
+      // 如果是舊版物件（含 chinese, math, etc.），轉換為 items 陣列
+      if (!Array.isArray(raw.items)) {
+        const converted = [];
+        if (raw.chinese !== undefined) converted.push({ id: 'item_c', title: '國語作業', content: raw.chinese || '' });
+        if (raw.math !== undefined) converted.push({ id: 'item_m', title: '數學校訂', content: raw.math || '' });
+        if (raw.english !== undefined) converted.push({ id: 'item_e', title: '英語專科', content: raw.english || '' });
+        if (raw.other !== undefined) converted.push({ id: 'item_o', title: '攜帶物品/其他', content: raw.other || '' });
+        return {
+          items: converted.length > 0 ? converted : defaultItems,
+          memo: raw.memo || ''
+        };
+      }
+
+      return raw;
     };
 
-    let savedData = loadContactData(currentDate);
+    let contactData = loadContactData(currentDate);
 
-    const defaultTags = ['國習 P.', '數習 P.', '社習 P.', '攜帶美勞用具', '發下成績單', '簽名回條', '明日聽寫考'];
+    const defaultTags = ['國習 P.', '數習 P.', '社習 P.', '攜帶美勞用具', '發下成績單', '簽名回條', '明日聽寫考', '帶彩色筆', '體育服裝', '帶剪刀膠水'];
     let customTags = JSON.parse(localStorage.getItem('puti_hw_custom_tags') || '[]');
 
     let fontSize = 1.05;
@@ -218,7 +242,7 @@ const ClassroomWidgets = {
             <span id="contact-day-str" style="font-size: 0.8rem; color: #64748B; font-weight: 800;"></span>
           </div>
           <div style="display: flex; gap: 6px; align-items: center;">
-            <button class="scale-btn" id="hw-zhuyin-btn" style="font-size: 0.74rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; border: 1.5px solid ${isZhuyin ? '#8B5CF6' : '#CBD5E1'}; color: ${isZhuyin ? '#6D28D9' : '#64748B'}; background: ${isZhuyin ? '#F5F3FF' : '#FFF'}; cursor: pointer;" title="切換低年級注音抄寫模式">
+            <button class="scale-btn" id="hw-zhuyin-btn" style="font-size: 0.74rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; border: 1.5px solid ${isZhuyin ? '#8B5CF6' : '#CBD5E1'}; color: ${isZhuyin ? '#6D28D9' : '#64748B'}; background: ${isZhuyin ? '#F5F3FF' : '#FFF'}; cursor: pointer;" title="切換注音模式">
               ㄅ 注音模式
             </button>
             <div class="font-scale-controls">
@@ -235,83 +259,33 @@ const ClassroomWidgets = {
         <!-- Quick Snippet Tags Bar -->
         <div class="hw-quick-tags-bar" style="display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 4px 0; background: #FFF9DB; padding: 6px; border-radius: 10px; border: 1px dashed #FFE066;">
           <div id="hw-tags-container" style="display: flex; flex-wrap: wrap; gap: 5px; align-items: center;"></div>
-          <button type="button" class="action-btn-secondary" id="hw-add-tag-btn" style="height: 26px; font-size: 0.74rem; padding: 0 8px; border-style: dashed;" title="新增自訂聯絡簿標籤">
+          <button type="button" class="action-btn-secondary" id="hw-add-tag-btn" style="height: 24px; font-size: 0.72rem; padding: 0 8px; border-style: dashed;" title="新增自訂聯絡簿標籤">
             <i class="fa-solid fa-plus"></i> 新標籤
           </button>
         </div>
 
-        <!-- Homework Fields Grid with Linkage to Check Box -->
-        <div class="hw-fields-list" id="hw-fields-list" style="flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding: 2px;">
-          <!-- 國語 -->
-          <div class="hw-field-card" style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-              <span style="font-weight: 800; font-size: 0.85rem; color: #EA580C; display: flex; align-items: center; gap: 5px;">
-                <i class="fa-solid fa-pen-nib"></i> 國語作業
-              </span>
-              <button type="button" class="contact-hw-link-btn" data-field="chinese" data-label="國語作業"
-                style="height: 24px; padding: 0 8px; font-size: 0.72rem; border-radius: 6px; background: #FFF7ED; border: 1.2px solid #FDBA74; color: #C2410C; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="呼叫作業收發通，立即登記繳交狀況">
-                <i class="fa-solid fa-box-archive"></i> 登記繳交
-              </button>
-            </div>
-            <input type="text" id="hw-chinese" class="hw-input" value="${savedData.chinese || ''}" placeholder="請輸入今日國語作業 (如：國語習作第 42~45 頁)" style="width: 100%; border: 1.5px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 1rem; outline: none; box-sizing: border-box;">
-            <div id="hw-zy-chinese" class="hw-zhuyin-view" style="display: none; padding: 6px; border: 1.5px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; min-height: 38px;"></div>
-          </div>
+        <!-- Dynamic Customizable Items List -->
+        <div class="hw-fields-list" id="hw-dynamic-items-list" style="flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding: 2px;">
+          <!-- Generated Dynamically -->
+        </div>
 
-          <!-- 數學 -->
-          <div class="hw-field-card" style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-              <span style="font-weight: 800; font-size: 0.85rem; color: #2563EB; display: flex; align-items: center; gap: 5px;">
-                <i class="fa-solid fa-calculator"></i> 數學校訂作業
-              </span>
-              <button type="button" class="contact-hw-link-btn" data-field="math" data-label="數學校訂作業"
-                style="height: 24px; padding: 0 8px; font-size: 0.72rem; border-radius: 6px; background: #EFF6FF; border: 1.2px solid #93C5FD; color: #1D4ED8; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="呼叫作業收發通，立即登記繳交狀況">
-                <i class="fa-solid fa-box-archive"></i> 登記繳交
-              </button>
-            </div>
-            <input type="text" id="hw-math" class="hw-input" value="${savedData.math || ''}" placeholder="請輸入今日數學作業 (如：數學習作第 38 頁)" style="width: 100%; border: 1.5px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 1rem; outline: none; box-sizing: border-box;">
-            <div id="hw-zy-math" class="hw-zhuyin-view" style="display: none; padding: 6px; border: 1.5px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; min-height: 38px;"></div>
-          </div>
+        <!-- Action Bar: Add Item + Memo Section -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 2px;">
+          <button type="button" class="action-btn-secondary" id="contact-add-item-btn" style="height: 28px; font-size: 0.78rem; font-weight: 800; color: #2563EB; border-color: #93C5FD; background: #EFF6FF; border-style: dashed;" title="新增一列聯絡簿項目">
+            <i class="fa-solid fa-plus"></i> 新增聯絡簿項目
+          </button>
+          <span style="font-size: 0.72rem; color: #64748B;">💡 每一項作業與攜帶物品皆可點擊【登記繳交】進入作業收發通！</span>
+        </div>
 
-          <!-- 英語 -->
-          <div class="hw-field-card" style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-              <span style="font-weight: 800; font-size: 0.85rem; color: #059669; display: flex; align-items: center; gap: 5px;">
-                <i class="fa-solid fa-language"></i> 英語 / 專科作業
-              </span>
-              <button type="button" class="contact-hw-link-btn" data-field="english" data-label="英語作業"
-                style="height: 24px; padding: 0 8px; font-size: 0.72rem; border-radius: 6px; background: #ECFDF5; border: 1.2px solid #6EE7B7; color: #047857; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="呼叫作業收發通，立即登記繳交狀況">
-                <i class="fa-solid fa-box-archive"></i> 登記繳交
-              </button>
-            </div>
-            <input type="text" id="hw-english" class="hw-input" value="${savedData.english || ''}" placeholder="請輸入今日英語作業 (如：Unit 3 課本朗讀)" style="width: 100%; border: 1.5px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 1rem; outline: none; box-sizing: border-box;">
-            <div id="hw-zy-english" class="hw-zhuyin-view" style="display: none; padding: 6px; border: 1.5px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; min-height: 38px;"></div>
+        <!-- Important Memo Section -->
+        <div class="hw-field-card" style="background: #FFFDF5; border: 1.5px solid #FDE68A; border-radius: 12px; padding: 6px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+            <span style="font-weight: 800; font-size: 0.82rem; color: #B45309; display: flex; align-items: center; gap: 5px;">
+              <i class="fa-solid fa-bell"></i> 重要叮嚀 / 備忘事項
+            </span>
           </div>
-
-          <!-- 其他 -->
-          <div class="hw-field-card" style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-              <span style="font-weight: 800; font-size: 0.85rem; color: #7C3AED; display: flex; align-items: center; gap: 5px;">
-                <i class="fa-solid fa-shapes"></i> 其他 / 學習單
-              </span>
-              <button type="button" class="contact-hw-link-btn" data-field="other" data-label="其他作業"
-                style="height: 24px; padding: 0 8px; font-size: 0.72rem; border-radius: 6px; background: #F5F3FF; border: 1.2px solid #C4B5FD; color: #6D28D9; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="呼叫作業收發通，立即登記繳交狀況">
-                <i class="fa-solid fa-box-archive"></i> 登記繳交
-              </button>
-            </div>
-            <input type="text" id="hw-other" class="hw-input" value="${savedData.other || ''}" placeholder="其他作業或學習單 (如：美勞撕貼畫、閱讀 20 分鐘)" style="width: 100%; border: 1.5px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 1rem; outline: none; box-sizing: border-box;">
-            <div id="hw-zy-other" class="hw-zhuyin-view" style="display: none; padding: 6px; border: 1.5px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; min-height: 38px;"></div>
-          </div>
-
-          <!-- 重要備忘 -->
-          <div class="hw-field-card" style="background: #FFFDF5; border: 1.5px solid #FDE68A; border-radius: 12px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-              <span style="font-weight: 800; font-size: 0.85rem; color: #B45309; display: flex; align-items: center; gap: 5px;">
-                <i class="fa-solid fa-bell"></i> 重要叮嚀 / 備忘事項
-              </span>
-            </div>
-            <input type="text" id="hw-memo" class="hw-input" value="${savedData.memo || ''}" placeholder="明日用品、回條繳交或通知 (如：明天便服日、交回條)" style="width: 100%; border: 1.5px solid #FCD34D; border-radius: 8px; padding: 6px 10px; font-size: 1rem; outline: none; box-sizing: border-box; background: #FFF;">
-            <div id="hw-zy-memo" class="hw-zhuyin-view" style="display: none; padding: 6px; border: 1.5px solid #FDE68A; border-radius: 8px; background: #FFFBEB; min-height: 38px;"></div>
-          </div>
+          <input type="text" id="contact-memo-input" value="${contactData.memo || ''}" placeholder="明日生活叮嚀、校園作息公告或活動通知..." style="width: 100%; border: 1.5px solid #FCD34D; border-radius: 8px; padding: 5px 10px; font-size: 0.95rem; outline: none; box-sizing: border-box; background: #FFF;">
+          <div id="contact-memo-zy" class="hw-zhuyin-view" style="display: none; padding: 5px; border: 1.5px solid #FDE68A; border-radius: 8px; background: #FFFBEB; min-height: 34px;"></div>
         </div>
       </div>
     `;
@@ -319,8 +293,8 @@ const ClassroomWidgets = {
     wm.createWindow({
       title: '家庭聯絡簿',
       icon: 'fa-book-open-reader',
-      width: 580,
-      height: 540,
+      width: 600,
+      height: 560,
       type: 'contact',
       contentHtml: content,
       onInit: (el) => {
@@ -333,28 +307,12 @@ const ClassroomWidgets = {
         const copyBtn = el.querySelector('#hw-copy-btn');
         const addTagBtn = el.querySelector('#hw-add-tag-btn');
         const tagsContainer = el.querySelector('#hw-tags-container');
+        const itemsContainer = el.querySelector('#hw-dynamic-items-list');
+        const addItemBtn = el.querySelector('#contact-add-item-btn');
+        const memoInput = el.querySelector('#contact-memo-input');
+        const memoZy = el.querySelector('#contact-memo-zy');
 
-        const chineseIn = el.querySelector('#hw-chinese');
-        const mathIn = el.querySelector('#hw-math');
-        const englishIn = el.querySelector('#hw-english');
-        const otherIn = el.querySelector('#hw-other');
-        const memoIn = el.querySelector('#hw-memo');
-
-        const zyChinese = el.querySelector('#hw-zy-chinese');
-        const zyMath = el.querySelector('#hw-zy-math');
-        const zyEnglish = el.querySelector('#hw-zy-english');
-        const zyOther = el.querySelector('#hw-zy-other');
-        const zyMemo = el.querySelector('#hw-zy-memo');
-
-        const fieldPairs = [
-          { input: chineseIn, display: zyChinese },
-          { input: mathIn, display: zyMath },
-          { input: englishIn, display: zyEnglish },
-          { input: otherIn, display: zyOther },
-          { input: memoIn, display: zyMemo }
-        ];
-
-        let activeInput = chineseIn;
+        let lastFocusedInput = null;
 
         const updateDayString = () => {
           const dObj = new Date(currentDate);
@@ -364,118 +322,247 @@ const ClassroomWidgets = {
         };
         updateDayString();
 
-        fieldPairs.forEach(({ input, display }) => {
-          input.addEventListener('focus', () => {
-            activeInput = input;
-            input.style.borderColor = '#3A86FF';
-            input.style.boxShadow = '0 0 0 2px rgba(58, 134, 255, 0.2)';
-          });
-          input.addEventListener('blur', () => {
-            input.style.borderColor = '';
-            input.style.boxShadow = '';
-            if (isZhuyin) {
-              updateZhuyinViews();
-              input.style.display = 'none';
-              display.style.display = display === zyMemo ? 'block' : 'flex';
-            }
-          });
-          display.addEventListener('click', () => {
-            display.style.display = 'none';
-            input.style.display = 'block';
-            input.focus();
-            window.soundEngine.playTick();
-          });
-        });
+        const save = () => {
+          contactData.memo = memoInput.value.trim();
+          localStorage.setItem(getContactStorageKey(currentDate), JSON.stringify(contactData));
+          localStorage.setItem('puti_active_contact_date', currentDate);
 
-        const updateZhuyinViews = () => {
-          fieldPairs.forEach(({ input, display }) => {
-            const val = input.value.trim();
-            if (val && window.PutiZhuyin) {
-              display.innerHTML = window.PutiZhuyin.textToRubyHtml(val);
-            } else {
-              display.innerHTML = '<span style="color: #94A3B8; font-style: italic;">(未填寫)</span>';
+          // Legacy sync for today
+          if (currentDate === todayStr) {
+            const legacy = {
+              chinese: (contactData.items[0] && contactData.items[0].content) || '',
+              math: (contactData.items[1] && contactData.items[1].content) || '',
+              english: (contactData.items[2] && contactData.items[2].content) || '',
+              other: (contactData.items[3] && contactData.items[3].content) || '',
+              memo: contactData.memo
+            };
+            localStorage.setItem('puti_hw_data', JSON.stringify(legacy));
+          }
+
+          if (isZhuyin) updateAllZhuyin();
+        };
+
+        const updateAllZhuyin = () => {
+          if (!window.PutiZhuyin) return;
+          // Memo
+          if (memoInput.value.trim()) {
+            memoZy.innerHTML = window.PutiZhuyin.textToRubyHtml(memoInput.value.trim());
+          } else {
+            memoZy.innerHTML = '<span style="color: #94A3B8; font-style: italic;">(未填寫)</span>';
+          }
+          // Dynamic items
+          itemsContainer.querySelectorAll('.hw-item-row').forEach(row => {
+            const input = row.querySelector('.hw-item-input');
+            const zy = row.querySelector('.hw-item-zy');
+            if (input && zy) {
+              const val = input.value.trim();
+              zy.innerHTML = val ? window.PutiZhuyin.textToRubyHtml(val) : '<span style="color: #94A3B8; font-style: italic;">(未填寫)</span>';
             }
           });
         };
 
-        const applyZhuyinMode = () => {
+        const applyZhuyinDisplay = () => {
           zhuyinBtn.style.border = isZhuyin ? '1.5px solid #8B5CF6' : '1.5px solid #CBD5E1';
           zhuyinBtn.style.color = isZhuyin ? '#6D28D9' : '#64748B';
           zhuyinBtn.style.background = isZhuyin ? '#F5F3FF' : '#FFF';
           zhuyinBtn.innerHTML = isZhuyin ? '<i class="fa-solid fa-check"></i> ㄅ 注音中' : 'ㄅ 注音模式';
 
           if (isZhuyin) {
-            updateZhuyinViews();
-            fieldPairs.forEach(({ input, display }) => {
-              input.style.display = 'none';
-              display.style.display = display === zyMemo ? 'block' : 'flex';
-            });
+            updateAllZhuyin();
+            memoInput.style.display = 'none';
+            memoZy.style.display = 'block';
+            itemsContainer.querySelectorAll('.hw-item-input').forEach(i => i.style.display = 'none');
+            itemsContainer.querySelectorAll('.hw-item-zy').forEach(z => z.style.display = 'flex');
           } else {
-            fieldPairs.forEach(({ input, display }) => {
-              display.style.display = 'none';
-              input.style.display = 'block';
-            });
+            memoZy.style.display = 'none';
+            memoInput.style.display = 'block';
+            itemsContainer.querySelectorAll('.hw-item-zy').forEach(z => z.style.display = 'none');
+            itemsContainer.querySelectorAll('.hw-item-input').forEach(i => i.style.display = 'block');
           }
         };
 
-        const save = () => {
-          const data = {
-            chinese: chineseIn.value.trim(),
-            math: mathIn.value.trim(),
-            english: englishIn.value.trim(),
-            other: otherIn.value.trim(),
-            memo: memoIn.value.trim()
+        const renderItems = () => {
+          itemsContainer.innerHTML = contactData.items.map((item, idx) => {
+            const isCarry = item.title.includes('攜帶') || item.title.includes('物品');
+            const accentColor = isCarry ? '#D97706' : idx === 0 ? '#EA580C' : idx === 1 ? '#2563EB' : idx === 2 ? '#059669' : '#7C3AED';
+            const iconClass = isCarry ? 'fa-bag-shopping' : idx === 0 ? 'fa-pen-nib' : idx === 1 ? 'fa-calculator' : idx === 2 ? 'fa-language' : 'fa-list-check';
+
+            return `
+              <div class="hw-item-row" data-id="${item.id}" style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 7px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px;">
+                  <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
+                    <i class="fa-solid ${iconClass}" style="color: ${accentColor}; font-size: 0.85rem;"></i>
+                    <input type="text" class="hw-item-title-input" value="${item.title}" title="可點擊修改項目名稱"
+                      style="font-weight: 800; font-size: 0.84rem; color: ${accentColor}; border: 1px dashed transparent; border-radius: 4px; padding: 1px 4px; background: transparent; outline: none; width: 110px;"
+                      onfocus="this.style.borderColor='#CBD5E1'; this.style.background='#FFF';"
+                      onblur="this.style.borderColor='transparent'; this.style.background='transparent';">
+                  </div>
+                  <div style="display: flex; gap: 4px; align-items: center;">
+                    <button type="button" class="contact-hw-link-btn" data-id="${item.id}"
+                      style="height: 24px; padding: 0 8px; font-size: 0.72rem; border-radius: 6px; background: #FFF7ED; border: 1.2px solid #FDBA74; color: #C2410C; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="呼叫作業收發通，登記此項目的繳交情形">
+                      <i class="fa-solid fa-box-archive"></i> 登記繳交
+                    </button>
+                    ${contactData.items.length > 1 ? `
+                      <button type="button" class="contact-hw-del-btn" data-id="${item.id}"
+                        style="height: 24px; width: 24px; border-radius: 6px; background: transparent; border: 1px solid #FECDD3; color: #E11D48; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem;" title="刪除此項目">
+                        <i class="fa-solid fa-trash-can"></i>
+                      </button>
+                    ` : ''}
+                  </div>
+                </div>
+                <input type="text" class="hw-item-input" value="${item.content || ''}" placeholder="請填寫作業細項或攜帶物品 (例：第 42~45 頁、彩色筆與剪刀)"
+                  style="width: 100%; border: 1.5px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: ${fontSize}rem; outline: none; box-sizing: border-box;">
+                <div class="hw-item-zy hw-zhuyin-view" style="display: none; padding: 6px; border: 1.5px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; min-height: 38px;"></div>
+              </div>
+            `;
+          }).join('');
+
+          // 綁定輸入與焦點
+          itemsContainer.querySelectorAll('.hw-item-row').forEach(row => {
+            const id = row.getAttribute('data-id');
+            const it = contactData.items.find(x => x.id === id);
+            const titleInput = row.querySelector('.hw-item-title-input');
+            const contentInput = row.querySelector('.hw-item-input');
+            const zyView = row.querySelector('.hw-item-zy');
+            const linkBtn = row.querySelector('.contact-hw-link-btn');
+            const delBtn = row.querySelector('.contact-hw-del-btn');
+
+            if (titleInput && it) {
+              titleInput.addEventListener('input', () => {
+                it.title = titleInput.value.trim() || '自訂項目';
+                save();
+              });
+            }
+
+            if (contentInput && it) {
+              contentInput.addEventListener('focus', () => {
+                lastFocusedInput = contentInput;
+                contentInput.style.borderColor = '#3A86FF';
+                contentInput.style.boxShadow = '0 0 0 2px rgba(58, 134, 255, 0.2)';
+              });
+              contentInput.addEventListener('blur', () => {
+                contentInput.style.borderColor = '';
+                contentInput.style.boxShadow = '';
+                if (isZhuyin) {
+                  updateAllZhuyin();
+                  contentInput.style.display = 'none';
+                  zyView.style.display = 'flex';
+                }
+              });
+              contentInput.addEventListener('input', () => {
+                it.content = contentInput.value.trim();
+                save();
+              });
+            }
+
+            if (zyView && contentInput) {
+              zyView.addEventListener('click', () => {
+                zyView.style.display = 'none';
+                contentInput.style.display = 'block';
+                contentInput.focus();
+                window.soundEngine.playTick();
+              });
+            }
+
+            // 登記繳交連動按鈕
+            if (linkBtn && it) {
+              linkBtn.addEventListener('click', () => {
+                const text = it.content ? it.content.trim() : '';
+                if (!text) {
+                  alert(`請先填寫【${it.title}】的內容，再點擊登記繳交！`);
+                  if (contentInput) contentInput.focus();
+                  return;
+                }
+
+                // 呼叫作業收發通，傳入日期與該項目的完整作業名稱
+                ClassroomWidgets.spawnHomeworkCheck(wm, {
+                  date: currentDate,
+                  subject: text,
+                  title: it.title
+                });
+
+                if (window.soundEngine && typeof window.soundEngine.playPop === 'function') {
+                  window.soundEngine.playPop();
+                }
+              });
+            }
+
+            // 刪除項目按鈕
+            if (delBtn) {
+              delBtn.addEventListener('click', () => {
+                const idx = contactData.items.findIndex(x => x.id === id);
+                if (idx !== -1) {
+                  contactData.items.splice(idx, 1);
+                  save();
+                  renderItems();
+                  if (window.soundEngine) window.soundEngine.playTick();
+                }
+              });
+            }
+          });
+
+          if (!lastFocusedInput) {
+            const firstInput = itemsContainer.querySelector('.hw-item-input');
+            if (firstInput) lastFocusedInput = firstInput;
+          }
+
+          if (isZhuyin) applyZhuyinDisplay();
+        };
+
+        // 新增自訂項目按鈕
+        addItemBtn.addEventListener('click', () => {
+          const newIdx = contactData.items.length + 1;
+          const newItem = {
+            id: 'item_' + Date.now(),
+            title: `作業項目 ${newIdx}`,
+            content: ''
           };
-          localStorage.setItem(getContactStorageKey(currentDate), JSON.stringify(data));
-          localStorage.setItem('puti_active_contact_date', currentDate);
-          // Legacy backup for today
-          if (currentDate === todayStr) {
-            localStorage.setItem('puti_hw_data', JSON.stringify(data));
+          contactData.items.push(newItem);
+          save();
+          renderItems();
+          if (window.soundEngine) window.soundEngine.playPop();
+
+          setTimeout(() => {
+            const newRow = itemsContainer.querySelector(`[data-id="${newItem.id}"] .hw-item-input`);
+            if (newRow) newRow.focus();
+          }, 50);
+        });
+
+        // 叮嚀備忘事件
+        memoInput.addEventListener('focus', () => { lastFocusedInput = memoInput; });
+        memoInput.addEventListener('input', save);
+        memoInput.addEventListener('blur', () => {
+          if (isZhuyin) {
+            updateAllZhuyin();
+            memoInput.style.display = 'none';
+            memoZy.style.display = 'block';
           }
-          if (isZhuyin) updateZhuyinViews();
-        };
+        });
+        memoZy.addEventListener('click', () => {
+          memoZy.style.display = 'none';
+          memoInput.style.display = 'block';
+          memoInput.focus();
+        });
 
-        fieldPairs.forEach(({ input }) => input.addEventListener('input', save));
-
+        // 日期切換
         datePicker.addEventListener('change', (e) => {
           currentDate = e.target.value;
           localStorage.setItem('puti_active_contact_date', currentDate);
           updateDayString();
-          savedData = loadContactData(currentDate);
-          chineseIn.value = savedData.chinese || '';
-          mathIn.value = savedData.math || '';
-          englishIn.value = savedData.english || '';
-          otherIn.value = savedData.other || '';
-          memoIn.value = savedData.memo || '';
-          if (isZhuyin) updateZhuyinViews();
+          contactData = loadContactData(currentDate);
+          memoInput.value = contactData.memo || '';
+          renderItems();
         });
 
-        // 登記繳交連動按鈕：直接叫出作業收發通並切換至該項作業
-        el.querySelectorAll('.contact-hw-link-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const field = btn.getAttribute('data-field');
-            const input = el.querySelector(`#hw-${field}`);
-            const hwText = input ? input.value.trim() : '';
-
-            if (!hwText) {
-              alert('請先填寫該項作業的具體內容（例如：國語習作第 42~45 頁），再點擊登記繳交！');
-              if (input) input.focus();
-              return;
-            }
-
-            // 呼叫作業收發通，傳遞特定日期與作業名稱
-            ClassroomWidgets.spawnHomeworkCheck(wm, {
-              date: currentDate,
-              subject: hwText
-            });
-
-            if (window.soundEngine && typeof window.soundEngine.playPop === 'function') {
-              window.soundEngine.playPop();
-            }
-          });
+        // 注音切換
+        zhuyinBtn.addEventListener('click', () => {
+          isZhuyin = !isZhuyin;
+          localStorage.setItem('puti_hw_zhuyin', isZhuyin);
+          applyZhuyinDisplay();
+          window.soundEngine.playPop();
         });
 
-        // Tag Handling
+        // 標籤快速填入
         const renderTags = () => {
           tagsContainer.innerHTML = '';
           defaultTags.forEach(tag => {
@@ -486,11 +573,12 @@ const ClassroomWidgets = {
             btn.style.cssText = 'height: 24px; font-size: 0.72rem; padding: 0 8px; border-radius: 999px; background: #FFF; border: 1px solid #CBD5E1; cursor: pointer; color: #475569; font-weight: 700;';
             btn.addEventListener('click', (e) => {
               e.preventDefault();
-              if (activeInput) {
-                const cur = activeInput.value;
-                activeInput.value = cur ? cur + ' ' + tag : tag;
-                save();
-                activeInput.focus();
+              const target = lastFocusedInput || itemsContainer.querySelector('.hw-item-input') || memoInput;
+              if (target) {
+                const cur = target.value;
+                target.value = cur ? cur + ' ' + tag : tag;
+                target.dispatchEvent(new Event('input'));
+                target.focus();
               }
             });
             tagsContainer.appendChild(btn);
@@ -498,37 +586,41 @@ const ClassroomWidgets = {
         };
         renderTags();
 
-        // Font scaling
+        // 字級縮放
         fontPlus.addEventListener('click', () => {
           fontSize = Math.min(1.4, fontSize + 0.1);
-          el.querySelectorAll('.hw-input, .hw-zhuyin-view').forEach(i => i.style.fontSize = fontSize + 'rem');
+          el.querySelectorAll('.hw-item-input, .hw-zhuyin-view, #contact-memo-input').forEach(i => i.style.fontSize = fontSize + 'rem');
         });
         fontMinus.addEventListener('click', () => {
           fontSize = Math.max(0.85, fontSize - 0.1);
-          el.querySelectorAll('.hw-input, .hw-zhuyin-view').forEach(i => i.style.fontSize = fontSize + 'rem');
+          el.querySelectorAll('.hw-item-input, .hw-zhuyin-view, #contact-memo-input').forEach(i => i.style.fontSize = fontSize + 'rem');
         });
         fontReset.addEventListener('click', () => {
           fontSize = 1.05;
-          el.querySelectorAll('.hw-input, .hw-zhuyin-view').forEach(i => i.style.fontSize = fontSize + 'rem');
+          el.querySelectorAll('.hw-item-input, .hw-zhuyin-view, #contact-memo-input').forEach(i => i.style.fontSize = fontSize + 'rem');
         });
 
-        // Copy LINE
+        // 複製 LINE
         copyBtn.addEventListener('click', () => {
           let text = `【家庭聯絡簿】${currentDate} ${dayStrEl.textContent}\n`;
-          if (chineseIn.value.trim()) text += `1. 國語：${chineseIn.value.trim()}\n`;
-          if (mathIn.value.trim()) text += `2. 數學：${mathIn.value.trim()}\n`;
-          if (englishIn.value.trim()) text += `3. 英語/專科：${englishIn.value.trim()}\n`;
-          if (otherIn.value.trim()) text += `4. 其他：${otherIn.value.trim()}\n`;
-          if (memoIn.value.trim()) text += `⭐ 重要叮嚀：${memoIn.value.trim()}\n`;
+          contactData.items.forEach((it, idx) => {
+            if (it.content && it.content.trim()) {
+              text += `${idx + 1}. ${it.title}：${it.content.trim()}\n`;
+            }
+          });
+          if (memoInput.value.trim()) {
+            text += `⭐ 重要叮嚀：${memoInput.value.trim()}\n`;
+          }
 
           navigator.clipboard.writeText(text).then(() => {
-            alert('📋 今日家庭聯絡簿已複製至剪貼簿，可直接貼至 LINE 群組！\n\n' + text);
+            alert('📋 家庭聯絡簿內容已複製至剪貼簿，可直接貼至 LINE 家長群！\n\n' + text);
           }).catch(() => {
             prompt('請手動複製聯絡簿內容：', text);
           });
         });
 
-        applyZhuyinMode();
+        renderItems();
+        if (isZhuyin) applyZhuyinDisplay();
       }
     });
   },
@@ -5461,28 +5553,41 @@ const ClassroomWidgets = {
         resizeObserver = new ResizeObserver(() => updateHwScale());
         resizeObserver.observe(el);
 
-        const updateContactSelect = () => {
+                const updateContactSelect = () => {
           let contactData = JSON.parse(localStorage.getItem(getContactStorageKey(currentDate)) || 'null');
           if (!contactData && currentDate === todayStr) {
             contactData = JSON.parse(localStorage.getItem('puti_hw_data') || 'null');
           }
 
-          contactSelect.innerHTML = '<option value="">📖 載入聯絡簿作業...</option>';
+          contactSelect.innerHTML = '<option value="">📖 載入聯絡簿項目...</option>';
           if (contactData) {
-            const list = [
-              { label: '國語', val: contactData.chinese },
-              { label: '數學', val: contactData.math },
-              { label: '英語', val: contactData.english },
-              { label: '其他', val: contactData.other }
-            ];
-            list.forEach(it => {
-              if (it.val && it.val.trim()) {
-                const opt = document.createElement('option');
-                opt.value = it.val.trim();
-                opt.textContent = `${it.label}: ${it.val.trim()}`;
-                contactSelect.appendChild(opt);
-              }
-            });
+            // Dynamic items array
+            if (Array.isArray(contactData.items)) {
+              contactData.items.forEach(it => {
+                if (it.content && it.content.trim()) {
+                  const opt = document.createElement('option');
+                  opt.value = it.content.trim();
+                  opt.textContent = `[${it.title}] ${it.content.trim()}`;
+                  contactSelect.appendChild(opt);
+                }
+              });
+            } else {
+              // Legacy fallback
+              const list = [
+                { label: '國語', val: contactData.chinese },
+                { label: '數學', val: contactData.math },
+                { label: '英語', val: contactData.english },
+                { label: '其他', val: contactData.other }
+              ];
+              list.forEach(it => {
+                if (it.val && it.val.trim()) {
+                  const opt = document.createElement('option');
+                  opt.value = it.val.trim();
+                  opt.textContent = `${it.label}: ${it.val.trim()}`;
+                  contactSelect.appendChild(opt);
+                }
+              });
+            }
           }
         };
 
