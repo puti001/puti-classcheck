@@ -472,12 +472,7 @@ const ClassroomWidgets = {
             // 登記繳交連動按鈕
             if (linkBtn && it) {
               linkBtn.addEventListener('click', () => {
-                const text = it.content ? it.content.trim() : '';
-                if (!text) {
-                  alert(`請先填寫【${it.title}】的內容，再點擊登記繳交！`);
-                  if (contentInput) contentInput.focus();
-                  return;
-                }
+                const text = (it.content && it.content.trim()) ? it.content.trim() : it.title;
 
                 // 呼叫作業收發通，傳入日期與該項目的完整作業名稱
                 ClassroomWidgets.spawnHomeworkCheck(wm, {
@@ -5363,7 +5358,20 @@ const ClassroomWidgets = {
   // 作業收發通 (Homework Check & Collection Manager) - 支援指定日期與聯絡簿連動
   // =========================================================================
   spawnHomeworkCheck(wm, initialOptions = {}) {
-    let roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
+    const getRoster = () => {
+      try {
+        const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
+        if (classData && classData.classes) {
+          const act = classData.classes.find(c => c.id === classData.activeId) || classData.classes[0];
+          if (act && Array.isArray(act.roster) && act.roster.length > 0) return act.roster;
+        }
+      } catch(e){}
+      const saved = JSON.parse(localStorage.getItem('puti_student_roster') || 'null');
+      if (Array.isArray(saved) && saved.length > 0) return saved;
+      return Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
+    };
+
+    let roster = getRoster();
     let activeClass = 'default';
     try {
       const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
@@ -5391,20 +5399,26 @@ const ClassroomWidgets = {
     }
 
     const loadHwDataForDate = (d) => {
-      let data = JSON.parse(localStorage.getItem(getHwStorageKey(d)) || 'null');
+      let data = null;
+      try {
+        data = JSON.parse(localStorage.getItem(getHwStorageKey(d)) || 'null');
+      } catch(e){}
+
       if (!data) {
-        let contactData = JSON.parse(localStorage.getItem(getContactStorageKey(d)) || 'null');
-        if (!contactData && d === todayStr) {
-          contactData = JSON.parse(localStorage.getItem('puti_hw_data') || 'null');
-        }
+        let contactData = null;
+        try {
+          contactData = JSON.parse(localStorage.getItem(getContactStorageKey(d)) || 'null');
+          if (!contactData && d === todayStr) {
+            contactData = JSON.parse(localStorage.getItem('puti_hw_data') || 'null');
+          }
+        } catch(e){}
 
         const autoSubjects = [];
-        if (contactData) {
-          if (Array.isArray(contactData.items)) {
-            contactData.items.forEach(it => {
-              if (it.content && it.content.trim()) autoSubjects.push(it.content.trim());
-            });
-          }
+        if (contactData && Array.isArray(contactData.items)) {
+          contactData.items.forEach(it => {
+            const name = (it.content && it.content.trim()) ? it.content.trim() : it.title;
+            if (name && name.trim()) autoSubjects.push(name.trim());
+          });
         }
 
         data = {
@@ -5414,18 +5428,25 @@ const ClassroomWidgets = {
         };
       }
 
-      // Sanitize legacy hardcoded subjects in user's localStorage
-      if (data && Array.isArray(data.subjects)) {
-        data.subjects = data.subjects.map(s => {
-          if (s === '國語作業' || s === '國語習作') return '作業1';
-          if (s === '數學校訂' || s === '數學習作') return '作業2';
-          if (s === '英語專科') return '作業3';
-          if (s === '課堂學習單' || s === '美勞撕貼') return '攜帶物品';
-          return s;
-        });
-        if (data.activeSubject === '國語作業' || data.activeSubject === '國語習作') data.activeSubject = '作業1';
-        if (data.activeSubject === '數學校訂' || data.activeSubject === '數學習作') data.activeSubject = '作業2';
-        if (data.activeSubject === '英語專科') data.activeSubject = '作業3';
+      if (!data.records || typeof data.records !== 'object') data.records = {};
+      if (!Array.isArray(data.subjects) || data.subjects.length === 0) {
+        data.subjects = ['作業1', '作業2', '作業3', '攜帶物品'];
+      }
+
+      // 替換歷史寫死之科目
+      data.subjects = data.subjects.map(s => {
+        if (s === '國語作業' || s === '國語習作') return '作業1';
+        if (s === '數學校訂' || s === '數學習作') return '作業2';
+        if (s === '英語專科') return '作業3';
+        if (s === '課堂學習單' || s === '美勞撕貼') return '攜帶物品';
+        return s;
+      });
+
+      if (!data.activeSubject || !data.subjects.includes(data.activeSubject)) {
+        data.activeSubject = data.subjects[0];
+      }
+      if (!data.records[data.activeSubject]) {
+        data.records[data.activeSubject] = {};
       }
 
       return data;
@@ -5433,7 +5454,7 @@ const ClassroomWidgets = {
 
     let hwData = loadHwDataForDate(currentDate);
 
-    // 若傳入指定作業項目，確保加入並設為選中
+    // 若呼叫時傳入指定作業項目，確保加入並設為選中
     if (initialOptions.subject) {
       const cleanSub = initialOptions.subject.trim();
       if (!hwData.subjects.includes(cleanSub)) {
@@ -5480,7 +5501,7 @@ const ClassroomWidgets = {
         <div style="display: flex; justify-content: space-between; align-items: center; background: #FFF9DB; padding: 6px 12px; border-radius: 10px; border: 1px solid #FFE066; gap: 10px;">
           <div style="flex: 1; display: flex; flex-direction: column; gap: 3px;">
             <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 800; color: #D9480F;">
-              <span id="hw-stat-subject-title" style="max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">數學習作</span>
+              <span id="hw-stat-subject-title" style="max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">作業1</span>
               <span id="hw-stat-progress-text">已收 0 / 0 人 (0%)</span>
             </div>
             <div style="height: 7px; background: #E9ECEF; border-radius: 4px; overflow: hidden;">
@@ -5510,6 +5531,7 @@ const ClassroomWidgets = {
     `;
 
     let resizeObserver = null;
+    let onRosterUpdated = null;
 
     const winObj = wm.createWindow({
       title: '作業收發通',
@@ -5518,7 +5540,7 @@ const ClassroomWidgets = {
       height: 520,
       type: 'homework-check',
       contentHtml: content,
-      onInit: (el) => {
+      onInit: (el, winInstance) => {
         const datePicker = el.querySelector('#hw-check-date-picker');
         const contactSelect = el.querySelector('#hw-from-contact-select');
         const tabsContainer = el.querySelector('#hw-tabs-container');
@@ -5554,37 +5576,24 @@ const ClassroomWidgets = {
         resizeObserver = new ResizeObserver(() => updateHwScale());
         resizeObserver.observe(el);
 
-                const updateContactSelect = () => {
-          let contactData = JSON.parse(localStorage.getItem(getContactStorageKey(currentDate)) || 'null');
-          if (!contactData && currentDate === todayStr) {
-            contactData = JSON.parse(localStorage.getItem('puti_hw_data') || 'null');
-          }
+        const updateContactSelect = () => {
+          let contactData = null;
+          try {
+            contactData = JSON.parse(localStorage.getItem(getContactStorageKey(currentDate)) || 'null');
+            if (!contactData && currentDate === todayStr) {
+              contactData = JSON.parse(localStorage.getItem('puti_hw_data') || 'null');
+            }
+          } catch(e){}
 
-          contactSelect.innerHTML = '<option value="">📖 載入聯絡簿項目...</option>';
+          contactSelect.innerHTML = '<option value="">📖 載入聯絡簿作業...</option>';
           if (contactData) {
-            // Dynamic items array
             if (Array.isArray(contactData.items)) {
               contactData.items.forEach(it => {
-                if (it.content && it.content.trim()) {
+                const name = (it.content && it.content.trim()) ? it.content.trim() : it.title;
+                if (name && name.trim()) {
                   const opt = document.createElement('option');
-                  opt.value = it.content.trim();
-                  opt.textContent = `[${it.title}] ${it.content.trim()}`;
-                  contactSelect.appendChild(opt);
-                }
-              });
-            } else {
-              // Legacy fallback
-              const list = [
-                { label: '國語', val: contactData.chinese },
-                { label: '數學', val: contactData.math },
-                { label: '英語', val: contactData.english },
-                { label: '其他', val: contactData.other }
-              ];
-              list.forEach(it => {
-                if (it.val && it.val.trim()) {
-                  const opt = document.createElement('option');
-                  opt.value = it.val.trim();
-                  opt.textContent = `${it.label}: ${it.val.trim()}`;
+                  opt.value = name.trim();
+                  opt.textContent = `[${it.title}] ${name.trim()}`;
                   contactSelect.appendChild(opt);
                 }
               });
@@ -5593,13 +5602,13 @@ const ClassroomWidgets = {
         };
 
         const ensureActiveSubject = () => {
-          if (!hwData.subjects || hwData.subjects.length === 0) {
-            hwData.subjects = ['課堂作業'];
+          if (!hwData.subjects || !Array.isArray(hwData.subjects) || hwData.subjects.length === 0) {
+            hwData.subjects = ['作業1', '作業2', '作業3', '攜帶物品'];
           }
           if (!hwData.activeSubject || !hwData.subjects.includes(hwData.activeSubject)) {
             hwData.activeSubject = hwData.subjects[0];
           }
-          if (!hwData.records) hwData.records = {};
+          if (!hwData.records || typeof hwData.records !== 'object') hwData.records = {};
           if (!hwData.records[hwData.activeSubject]) {
             hwData.records[hwData.activeSubject] = {};
           }
@@ -5622,8 +5631,11 @@ const ClassroomWidgets = {
           }).join('');
 
           tabsContainer.querySelectorAll('.hw-sub-tab').forEach(btn => {
-            btn.addEventListener('click', () => {
-              hwData.activeSubject = decodeURIComponent(btn.getAttribute('data-sub'));
+            btn.addEventListener('click', (e) => {
+              e.preventDefault();
+              const chosen = decodeURIComponent(btn.getAttribute('data-sub'));
+              hwData.activeSubject = chosen;
+              ensureActiveSubject();
               saveHwData();
               render();
             });
@@ -5635,7 +5647,7 @@ const ClassroomWidgets = {
           renderTabs();
 
           const sub = hwData.activeSubject;
-          const rec = hwData.records[sub] || {};
+          const rec = hwData.records[sub];
           let doneCount = 0;
 
           grid.innerHTML = roster.map(name => {
@@ -5661,8 +5673,11 @@ const ClassroomWidgets = {
           grid.querySelectorAll('.hw-check-card').forEach(card => {
             card.addEventListener('click', () => {
               const name = card.getAttribute('data-name');
+              ensureActiveSubject();
               rec[name] = !rec[name];
-              if (window.soundEngine) window.soundEngine.playTick();
+              if (window.soundEngine && typeof window.soundEngine.playTick === 'function') {
+                window.soundEngine.playTick();
+              }
               saveHwData();
               render();
             });
@@ -5672,21 +5687,23 @@ const ClassroomWidgets = {
         };
 
         // 外部呼叫切換日期與作業項目接口
-        if (winInstance) winInstance.setExternalTarget = (targetDate, targetSubject) => {
-          currentDate = targetDate;
-          datePicker.value = currentDate;
-          hwData = loadHwDataForDate(currentDate);
+        if (winInstance) {
+          winInstance.setExternalTarget = (targetDate, targetSubject) => {
+            currentDate = targetDate || currentDate;
+            datePicker.value = currentDate;
+            hwData = loadHwDataForDate(currentDate);
 
-          if (targetSubject) {
-            const clean = targetSubject.trim();
-            if (!hwData.subjects.includes(clean)) hwData.subjects.push(clean);
-            hwData.activeSubject = clean;
-            if (!hwData.records[clean]) hwData.records[clean] = {};
-          }
-          saveHwData();
-          updateContactSelect();
-          render();
-        };
+            if (targetSubject) {
+              const clean = targetSubject.trim();
+              if (!hwData.subjects.includes(clean)) hwData.subjects.push(clean);
+              hwData.activeSubject = clean;
+              if (!hwData.records[clean]) hwData.records[clean] = {};
+            }
+            saveHwData();
+            updateContactSelect();
+            render();
+          };
+        }
 
         // 日期變更
         datePicker.addEventListener('change', (e) => {
@@ -5745,8 +5762,9 @@ const ClassroomWidgets = {
 
         // 一鍵全收
         allCheckBtn.addEventListener('click', () => {
+          ensureActiveSubject();
           const sub = hwData.activeSubject;
-          const rec = hwData.records[sub] || {};
+          const rec = hwData.records[sub];
           const allDone = roster.every(name => !!rec[name]);
           roster.forEach(name => {
             rec[name] = !allDone;
@@ -5761,8 +5779,9 @@ const ClassroomWidgets = {
 
         // 複製催繳名單
         copyMissingBtn.addEventListener('click', () => {
+          ensureActiveSubject();
           const sub = hwData.activeSubject;
-          const rec = hwData.records[sub] || {};
+          const rec = hwData.records[sub];
           const missing = roster.filter(name => !rec[name]);
 
           let text = `【作業收發催繳提醒】${currentDate}\n`;
@@ -5782,20 +5801,31 @@ const ClassroomWidgets = {
           });
         });
 
+        // 全域名冊連動更新監聽
+        onRosterUpdated = (e) => {
+          if (e.detail && Array.isArray(e.detail)) {
+            roster = [...e.detail];
+            render();
+          }
+        };
+        window.addEventListener('rosterUpdated', onRosterUpdated);
+
         updateContactSelect();
         render();
       },
       onClose: () => {
         if (resizeObserver) resizeObserver.disconnect();
+        if (onRosterUpdated) window.removeEventListener('rosterUpdated', onRosterUpdated);
       }
     });
 
-    if (winObj && !winObj.setExternalTarget && typeof winInstance !== "undefined") winObj.setExternalTarget = winInstance.setExternalTarget;
+    if (winObj && !winObj.setExternalTarget && typeof winInstance !== "undefined") {
+      winObj.setExternalTarget = winInstance.setExternalTarget;
+    }
     return winObj;
   },
 
-    // =========================================================================
-  // 班級座位表 (Classroom Seating Chart) - 純排座功能、拖曳放大動態字級
+    // 班級座位表 (Classroom Seating Chart) - 純排座功能、拖曳放大動態字級
   // =========================================================================
   spawnSeatingChart(wm) {
     let roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
