@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Puti-AI | 學生作業繳交通</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #2563EB;
+      --primary-light: #EFF6FF;
+      --primary-dark: #1D4ED8;
+      --accent: #F59E0B;
+      --success: #10B981;
+      --danger: #EF4444;
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --text-main: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Zen Maru Gothic', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 580px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* 頂部標題卡片 */
+    .header-card {
+      background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+      color: #FFF;
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+    }
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.25rem;
+      font-weight: 900;
+    }
+    .header-badge {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      backdrop-filter: blur(4px);
+    }
+
+    /* 一般卡片容器 */
+    .card {
+      background: var(--card-bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 900;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* 座號選擇格點 */
+    .roster-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 2px;
+    }
+    @media (max-width: 480px) {
+      .roster-grid {
+        grid-template-columns: repeat(5, 1fr);
+      }
+    }
+    .roster-btn {
+      height: 44px;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: #FFF;
+      color: var(--text-main);
+      font-size: 0.82rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .roster-btn:active {
+      transform: scale(0.95);
+    }
+    .roster-btn.active {
+      background: #10B981;
+      border-color: #059669;
+      color: #FFF;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+      transform: scale(1.02);
+    }
+
+    /* 作業項目選擇頁籤 */
+    .sub-tabs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .sub-tab-btn {
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: #FFF;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .sub-tab-btn.active {
+      background: #FEF3C7;
+      border-color: #F59E0B;
+      color: #B45309;
+      box-shadow: 0 2px 6px rgba(245, 158, 11, 0.2);
+    }
+
+    /* 提交模式切換（拍照 / 純文字） */
+    .mode-switch {
+      display: flex;
+      background: #F1F5F9;
+      border-radius: 12px;
+      padding: 3px;
+      gap: 4px;
+    }
+    .mode-btn {
+      flex: 1;
+      border: none;
+      padding: 8px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 800;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-muted);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .mode-btn.active {
+      background: #FFF;
+      color: var(--primary);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    }
+
+    /* 照片上傳區域 */
+    .upload-box {
+      border: 2px dashed #93C5FD;
+      border-radius: 14px;
+      background: #EFF6FF;
+      padding: 24px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .upload-box:active {
+      background: #DBEAFE;
+    }
+    .upload-icon {
+      font-size: 2.5rem;
+      color: #3B82F6;
+      margin-bottom: 8px;
+    }
+    .upload-text {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: #1E40AF;
+    }
+    .upload-sub {
+      font-size: 0.76rem;
+      color: #64748B;
+      margin-top: 4px;
+    }
+
+    /* 預覽照片 */
+    .preview-container {
+      position: relative;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 2px solid #CBD5E1;
+      background: #000;
+      display: none;
+    }
+    .preview-img {
+      width: 100%;
+      max-height: 380px;
+      object-fit: contain;
+      display: block;
+    }
+    .preview-actions {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 6px;
+    }
+    .preview-btn {
+      background: rgba(0, 0, 0, 0.65);
+      color: #FFF;
+      border: none;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      backdrop-filter: blur(4px);
+    }
+
+    /* 文字輸入框 */
+    .text-input-box {
+      width: 100%;
+      height: 180px;
+      border: 2px solid #CBD5E1;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 1rem;
+      line-height: 1.6;
+      outline: none;
+      resize: vertical;
+      box-sizing: border-box;
+      display: none;
+    }
+    .text-input-box:focus {
+      border-color: var(--primary);
+    }
+
+    /* 送出按鈕 */
+    .submit-btn {
+      width: 100%;
+      background: linear-gradient(135deg, #10B981, #059669);
+      color: #FFF;
+      border: none;
+      border-radius: 14px;
+      padding: 14px;
+      font-size: 1.1rem;
+      font-weight: 900;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+      transition: all 0.2s;
+    }
+    .submit-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .submit-btn:not(:disabled):active {
+      transform: scale(0.98);
+    }
+
+    /* 成功狀態卡片 */
+    .status-card {
+      background: #ECFDF5;
+      border: 2px solid #A7F3D0;
+      border-radius: var(--radius);
+      padding: 16px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      text-align: center;
+    }
+
+    /* 老師批改回饋卡片 */
+    .feedback-card {
+      background: #FFFBEB;
+      border: 2px solid #FDE68A;
+      border-radius: var(--radius);
+      padding: 14px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* 頁尾版權宣告 */
+    footer {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 0.78rem;
+      color: #64748B;
+      line-height: 1.6;
+      max-width: 540px;
+    }
+    footer a {
+      color: #2563EB;
+      font-weight: 800;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <div class="header-card">
+      <div class="header-title">
+        <i class="fa-solid fa-box-archive"></i>
+        <span>Puti-AI 學生作業繳交</span>
+      </div>
+      <div class="header-badge" id="class-badge">載入班級中...</div>
+    </div>
+
+    <!-- 成功繳交提示 (動態顯示) -->
+    <div class="status-card" id="status-box">
+      <div style="font-size: 1.8rem; color: #059669;"><i class="fa-solid fa-circle-check"></i></div>
+      <div style="font-size: 1.15rem; font-weight: 900; color: #065F46;" id="status-title">作業繳交成功！</div>
+      <div style="font-size: 0.85rem; color: #047857;" id="status-desc">大螢幕上的作業收發通已經即時打勾登記囉！</div>
+    </div>
+
+    <!-- 老師批改與評語提示 (若有) -->
+    <div class="feedback-card" id="feedback-box">
+      <div style="font-size: 0.95rem; font-weight: 900; color: #B45309; display: flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-stamp"></i> 老師批改回饋與印章：
+      </div>
+      <div id="feedback-content" style="font-size: 0.9rem; color: #78350F; background: #FFF; padding: 10px; border-radius: 8px; border: 1px dashed #FCD34D;">
+        尚無評語
+      </div>
+      <div id="feedback-img-box" style="display: none; border-radius: 8px; overflow: hidden; margin-top: 6px;">
+        <img id="feedback-img" src="" style="width: 100%; max-height: 300px; object-fit: contain; background: #000;">
+      </div>
+    </div>
+
+    <!-- 步驟 1: 選擇座號與姓名 -->
+    <div class="card">
+      <div class="card-title">
+        <i class="fa-solid fa-user-check" style="color: var(--primary);"></i>
+        <span>1. 點擊你的座號與姓名：<strong id="selected-student-label" style="color: #059669;">尚未選擇</strong></span>
+      </div>
+      <div class="roster-grid" id="roster-grid">
+        <!-- 動態渲染座號 -->
+      </div>
+    </div>
+
+    <!-- 步驟 2: 選擇作業項目 -->
+    <div class="card">
+      <div class="card-title">
+        <i class="fa-solid fa-book-bookmark" style="color: var(--accent);"></i>
+        <span>2. 選擇今天要繳交的作業：</span>
+      </div>
+      <div class="sub-tabs" id="sub-tabs">
+        <!-- 動態渲染作業項目 -->
+      </div>
+    </div>
+
+    <!-- 步驟 3: 上傳照片或輸入文字 -->
+    <div class="card">
+      <div class="card-title" style="justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-camera" style="color: #8B5CF6;"></i>
+          <span>3. 拍照上傳或輸入作業內容：</span>
+        </div>
+        <div class="mode-switch">
+          <button type="button" class="mode-btn active" id="mode-cam-btn"><i class="fa-solid fa-camera"></i> 拍照</button>
+          <button type="button" class="mode-btn" id="mode-text-btn"><i class="fa-solid fa-keyboard"></i> 打字</button>
+        </div>
+      </div>
+
+      <!-- 拍照上傳區塊 -->
+      <div id="photo-section">
+        <input type="file" id="cam-input" accept="image/*" capture="environment" style="display: none;">
+        <input type="file" id="file-input" accept="image/*" style="display: none;">
+
+        <div class="upload-box" id="upload-trigger">
+          <div class="upload-icon"><i class="fa-solid fa-camera-retro"></i></div>
+          <div class="upload-text">點此打開平板相機拍照</div>
+          <div class="upload-sub">支援相機拍照或從相簿挑選作業照片</div>
+          <div style="margin-top: 10px; display: flex; justify-content: center; gap: 8px;">
+            <button type="button" id="btn-cam" style="height: 32px; padding: 0 12px; font-size: 0.8rem; border-radius: 8px; border: 1.5px solid #3B82F6; background: #FFF; color: #2563EB; font-weight: 800; cursor: pointer;">
+              <i class="fa-solid fa-camera"></i> 即拍
+            </button>
+            <button type="button" id="btn-gallery" style="height: 32px; padding: 0 12px; font-size: 0.8rem; border-radius: 8px; border: 1.5px solid #94A3B8; background: #FFF; color: #475569; font-weight: 800; cursor: pointer;">
+              <i class="fa-solid fa-image"></i> 相簿選圖
+            </button>
+          </div>
+        </div>
+
+        <div class="preview-container" id="preview-box">
+          <img src="" id="preview-img" class="preview-img">
+          <div class="preview-actions">
+            <button type="button" class="preview-btn" id="btn-rotate" title="旋轉照片"><i class="fa-solid fa-rotate-right"></i></button>
+            <button type="button" class="preview-btn" id="btn-rephoto" title="重拍"><i class="fa-solid fa-trash-can"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 純文字打字區塊 -->
+      <textarea id="text-input" class="text-input-box" placeholder="請在此輸入作業內容、問答題目、課文短文或心得..."></textarea>
+    </div>
+
+    <!-- 步驟 4: 送出按鈕 -->
+    <button type="button" class="submit-btn" id="submit-btn" disabled>
+      <i class="fa-solid fa-paper-plane"></i>
+      <span>送出作業給老師</span>
+    </button>
+  </div>
+
+  <!-- 頁尾宣告 -->
+  <footer>
+    屏東縣後庄國小黃朝榮老師作品，免費分享，歡迎擴散推廣，嚴禁商用與任何侵權、不尊重著作權的行為<br>
+    更多 Puti-AI 教學工具請 <a href="https://padlet.com/clongwh/puti_ai_tools" target="_blank" rel="noopener">點此前往</a>
+  </footer>
+
+  <script>
+    (function() {
+      // 廣播頻道（跨標籤頁／跨視窗零延遲即時同步）
+      let bc = null;
+      try {
+        bc = new BroadcastChannel('puti_hw_channel');
+      } catch(e) {}
+
+      // URL 參數解析
+      const params = new URLSearchParams(window.location.search);
+      const urlClass = params.get('class') || '';
+      const urlDate = params.get('date') || new Date().toISOString().split('T')[0];
+      const urlSub = params.get('sub') ? decodeURIComponent(params.get('sub')) : '';
+
+      // 載入班級資料
+      let classData = null;
+      try {
+        classData = JSON.parse(localStorage.getItem('puti_classes_data'));
+      } catch(e) {}
+
+      let currentClassId = urlClass || (classData ? classData.activeId : 'default');
+      let currentClassName = '本班';
+      let roster = [];
+
+      if (classData && Array.isArray(classData.classes)) {
+        const found = classData.classes.find(c => c.id === currentClassId) || classData.classes[0];
+        if (found) {
+          currentClassId = found.id;
+          currentClassName = found.name;
+          roster = found.roster || [];
+        }
+      }
+      if (!roster || roster.length === 0) {
+        roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
+      }
+
+      document.getElementById('class-badge').textContent = `🎓 ${currentClassName}`;
+
+      // 載入作業項目清單
+      let subjects = ['作業1', '作業2', '作業3', '攜帶物品'];
+      try {
+        const hwStored = JSON.parse(localStorage.getItem(`puti_hw_check_${currentClassId}_${urlDate}`));
+        if (hwStored && Array.isArray(hwStored.subjects) && hwStored.subjects.length > 0) {
+          subjects = hwStored.subjects;
+        }
+      } catch(e) {}
+
+      let selectedStudent = '';
+      let selectedSubject = urlSub || subjects[0] || '作業1';
+      let currentMode = 'photo'; // 'photo' | 'text'
+      let currentImageBase64 = null;
+      let rotationAngle = 0;
+
+      // DOM 元素
+      const rosterGrid = document.getElementById('roster-grid');
+      const studentLabel = document.getElementById('selected-student-label');
+      const subTabs = document.getElementById('sub-tabs');
+      const modeCamBtn = document.getElementById('mode-cam-btn');
+      const modeTextBtn = document.getElementById('mode-text-btn');
+      const photoSection = document.getElementById('photo-section');
+      const textInput = document.getElementById('text-input');
+      const uploadTrigger = document.getElementById('upload-trigger');
+      const camInput = document.getElementById('cam-input');
+      const fileInput = document.getElementById('file-input');
+      const btnCam = document.getElementById('btn-cam');
+      const btnGallery = document.getElementById('btn-gallery');
+      const previewBox = document.getElementById('preview-box');
+      const previewImg = document.getElementById('preview-img');
+      const btnRotate = document.getElementById('btn-rotate');
+      const btnRephoto = document.getElementById('btn-rephoto');
+      const submitBtn = document.getElementById('submit-btn');
+      const statusBox = document.getElementById('status-box');
+      const statusTitle = document.getElementById('status-title');
+      const statusDesc = document.getElementById('status-desc');
+      const feedbackBox = document.getElementById('feedback-box');
+      const feedbackContent = document.getElementById('feedback-content');
+      const feedbackImgBox = document.getElementById('feedback-img-box');
+      const feedbackImg = document.getElementById('feedback-img');
+
+      // 渲染座號按鈕
+      const renderRoster = () => {
+        rosterGrid.innerHTML = roster.map((name, idx) => {
+          const isAct = name === selectedStudent;
+          return `
+            <button type="button" class="roster-btn ${isAct ? 'active' : ''}" data-name="${name}">
+              <span style="font-size: 0.7rem; opacity: 0.8;">#${idx + 1}</span>
+              <span style="max-width: 95%; overflow: hidden; text-overflow: ellipsis;">${name.replace(/^\d+\s*號\s*/, '')}</span>
+            </button>
+          `;
+        }).join('');
+
+        rosterGrid.querySelectorAll('.roster-btn').forEach(b => {
+          b.addEventListener('click', () => {
+            selectedStudent = b.getAttribute('data-name');
+            studentLabel.textContent = selectedStudent;
+            renderRoster();
+            checkExistingSubmission();
+            validateSubmit();
+          });
+        });
+      };
+      renderRoster();
+
+      // 渲染作業項目按鈕
+      const renderSubjects = () => {
+        subTabs.innerHTML = subjects.map(s => {
+          const isAct = s === selectedSubject;
+          return `
+            <button type="button" class="sub-tab-btn ${isAct ? 'active' : ''}" data-sub="${s}">
+              ${s}
+            </button>
+          `;
+        }).join('');
+
+        subTabs.querySelectorAll('.sub-tab-btn').forEach(b => {
+          b.addEventListener('click', () => {
+            selectedSubject = b.getAttribute('data-sub');
+            renderSubjects();
+            checkExistingSubmission();
+            validateSubmit();
+          });
+        });
+      };
+      renderSubjects();
+
+      // 切換打字 / 拍照
+      modeCamBtn.addEventListener('click', () => {
+        currentMode = 'photo';
+        modeCamBtn.classList.add('active');
+        modeTextBtn.classList.remove('active');
+        photoSection.style.display = 'block';
+        textInput.style.display = 'none';
+        validateSubmit();
+      });
+
+      modeTextBtn.addEventListener('click', () => {
+        currentMode = 'text';
+        modeTextBtn.classList.add('active');
+        modeCamBtn.classList.remove('active');
+        photoSection.style.display = 'none';
+        textInput.style.display = 'block';
+        textInput.focus();
+        validateSubmit();
+      });
+
+      textInput.addEventListener('input', validateSubmit);
+
+      // 拍照與選圖
+      btnCam.addEventListener('click', (e) => { e.stopPropagation(); camInput.click(); });
+      btnGallery.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+      uploadTrigger.addEventListener('click', () => camInput.click());
+
+      const processFile = (file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            // 自動壓縮並縮放至最長邊 1280px 以維持高畫質同時省頻寬
+            const maxDimension = 1280;
+            let width = img.width;
+            let height = img.height;
+            if (width > maxDimension || height > maxDimension) {
+              if (width > height) {
+                height = Math.round((height * maxDimension) / width);
+                width = maxDimension;
+              } else {
+                width = Math.round((width * maxDimension) / height);
+                height = maxDimension;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            currentImageBase64 = canvas.toDataURL('image/jpeg', 0.82);
+            rotationAngle = 0;
+            updatePreview();
+            validateSubmit();
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      };
+
+      camInput.addEventListener('change', (e) => processFile(e.target.files[0]));
+      fileInput.addEventListener('change', (e) => processFile(e.target.files[0]));
+
+      const updatePreview = () => {
+        if (!currentImageBase64) {
+          uploadTrigger.style.display = 'block';
+          previewBox.style.display = 'none';
+        } else {
+          uploadTrigger.style.display = 'none';
+          previewBox.style.display = 'block';
+          previewImg.src = currentImageBase64;
+          previewImg.style.transform = `rotate(${rotationAngle}deg)`;
+        }
+      };
+
+      btnRephoto.addEventListener('click', () => {
+        currentImageBase64 = null;
+        camInput.value = '';
+        fileInput.value = '';
+        updatePreview();
+        validateSubmit();
+      });
+
+      btnRotate.addEventListener('click', () => {
+        rotationAngle = (rotationAngle + 90) % 360;
+        previewImg.style.transform = `rotate(${rotationAngle}deg)`;
+      });
+
+      // 檢查是否已繳交與批改反饋
+      function checkExistingSubmission() {
+        if (!selectedStudent || !selectedSubject) return;
+        const subKey = `puti_hw_sub_${currentClassId}_${urlDate}`;
+        let subData = {};
+        try {
+          subData = JSON.parse(localStorage.getItem(subKey) || '{}');
+        } catch(e) {}
+
+        const studentRec = subData[selectedSubject] && subData[selectedSubject][selectedStudent];
+        if (studentRec) {
+          statusBox.style.display = 'flex';
+          statusTitle.textContent = `【${selectedStudent}】已完成繳交！`;
+          statusDesc.textContent = `繳交時間：${studentRec.time || '今日'} (${studentRec.type === 'photo' ? '圖片照片' : '文字心得'})`;
+
+          if (studentRec.feedback || studentRec.correctedImage) {
+            feedbackBox.style.display = 'flex';
+            feedbackContent.innerHTML = studentRec.feedback ? `<strong>📝 老師評語：</strong>${studentRec.feedback}` : '老師已完成線上紅筆批改！';
+            if (studentRec.correctedImage) {
+              feedbackImgBox.style.display = 'block';
+              feedbackImg.src = studentRec.correctedImage;
+            } else {
+              feedbackImgBox.style.display = 'none';
+            }
+          } else {
+            feedbackBox.style.display = 'none';
+          }
+        } else {
+          statusBox.style.display = 'none';
+          feedbackBox.style.display = 'none';
+        }
+      }
+
+      function validateSubmit() {
+        const hasStudent = !!selectedStudent;
+        const hasContent = currentMode === 'photo' ? !!currentImageBase64 : !!textInput.value.trim();
+        submitBtn.disabled = !(hasStudent && hasContent);
+      }
+
+      // 送出作業
+      submitBtn.addEventListener('click', async () => {
+        if (!selectedStudent) {
+          alert('請先點選你的座號姓名喔！');
+          return;
+        }
+
+        const isPhoto = currentMode === 'photo';
+        const contentVal = isPhoto ? currentImageBase64 : textInput.value.trim();
+        if (!contentVal) {
+          alert(isPhoto ? '請先拍照或挑選照片喔！' : '請先輸入作業內容喔！');
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在傳送至老師大螢幕...';
+
+        const payload = {
+          classId: currentClassId,
+          className: currentClassName,
+          date: urlDate,
+          subject: selectedSubject,
+          studentName: selectedStudent,
+          type: isPhoto ? 'photo' : 'text',
+          content: contentVal,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+
+        // 1. 本地 LocalStorage 寫入
+        const subKey = `puti_hw_sub_${currentClassId}_${urlDate}`;
+        let subData = {};
+        try {
+          subData = JSON.parse(localStorage.getItem(subKey) || '{}');
+        } catch(e) {}
+        if (!subData[selectedSubject]) subData[selectedSubject] = {};
+        subData[selectedSubject][selectedStudent] = payload;
+        localStorage.setItem(subKey, JSON.stringify(subData));
+
+        // 2. 標記作業收發通為已繳
+        const hwKey = `puti_hw_check_${currentClassId}_${urlDate}`;
+        let hwData = {};
+        try {
+          hwData = JSON.parse(localStorage.getItem(hwKey) || '{}');
+        } catch(e) {}
+        if (!hwData.records) hwData.records = {};
+        if (!hwData.records[selectedSubject]) hwData.records[selectedSubject] = {};
+        hwData.records[selectedSubject][selectedStudent] = true;
+        localStorage.setItem(hwKey, JSON.stringify(hwData));
+
+        // 3. 跨標籤頁廣播給大螢幕
+        if (bc) {
+          try {
+            bc.postMessage({ type: 'hw_submitted', payload });
+          } catch(e) {}
+        }
+
+        // 4. 若有設定 Google Apps Script Web App，非同步上傳到 Google Drive
+        const gasUrl = localStorage.getItem('puti_hw_gas_url');
+        if (gasUrl && gasUrl.startsWith('http')) {
+          try {
+            fetch(gasUrl, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            }).catch(err => console.log('GAS upload background log:', err));
+          } catch(e){}
+        }
+
+        // 成功動畫與反饋
+        setTimeout(() => {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="fa-solid fa-check"></i> 重新上傳/覆蓋';
+          if (typeof confetti === 'function') confetti({ particleCount: 70, spread: 60 });
+          checkExistingSubmission();
+          alert(`🎉 太棒了！【${selectedStudent}】的 ${selectedSubject} 已經成功繳交！\n老師大螢幕已即時收到你的作業囉！`);
+        }, 500);
+      });
+
+    })();
+  </script>
+</body>
+</html>
