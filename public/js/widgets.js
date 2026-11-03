@@ -5755,16 +5755,25 @@ const ClassroomWidgets = {
 
       if (!data) {
         data = {
-          subjects: ['課堂作業', '短文寫作', '美勞創作', '每日心得'],
-          activeSubject: '課堂作業',
+          subjects: ['作業1', '作業2', '作業3'],
+          activeSubject: '作業1',
           records: {}
         };
       }
 
       if (!data.records || typeof data.records !== 'object') data.records = {};
       if (!Array.isArray(data.subjects) || data.subjects.length === 0) {
-        data.subjects = ['課堂作業', '短文寫作', '美勞創作', '每日心得'];
+        data.subjects = ['作業1', '作業2', '作業3'];
       }
+
+      // 自動遷移舊有固化名稱
+      data.subjects = data.subjects.map(s => {
+        if (s === '課堂作業') return '作業1';
+        if (s === '短文寫作') return '作業2';
+        if (s === '美勞創作') return '作業3';
+        if (s === '每日心得') return '隨堂測驗';
+        return s;
+      });
       if (!data.activeSubject || !data.subjects.includes(data.activeSubject)) {
         data.activeSubject = data.subjects[0];
       }
@@ -5938,7 +5947,7 @@ const ClassroomWidgets = {
         <div style="display: flex; justify-content: space-between; align-items: center; background: #EEF2FF; padding: 6px 12px; border-radius: 10px; border: 1px solid #C7D2FE; gap: 10px;">
           <div style="flex: 1; display: flex; flex-direction: column; gap: 3px;">
             <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 800; color: #3730A3;">
-              <span id="online-hw-title" style="max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">課堂作業</span>
+              <span id="online-hw-title" style="max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">作業1</span>
               <span id="online-hw-progress-text">已收 0 / 0 人 (0%)</span>
             </div>
             <div style="height: 7px; background: #E0E7FF; border-radius: 4px; overflow: hidden;">
@@ -6027,7 +6036,7 @@ const ClassroomWidgets = {
 
         const ensureActive = () => {
           if (!onlineData.subjects || onlineData.subjects.length === 0) {
-            onlineData.subjects = ['課堂作業'];
+            onlineData.subjects = ['作業1', '作業2', '作業3'];
           }
           if (!onlineData.activeSubject || !onlineData.subjects.includes(onlineData.activeSubject)) {
             onlineData.activeSubject = onlineData.subjects[0];
@@ -6103,9 +6112,9 @@ const ClassroomWidgets = {
                 </div>
 
                 <div style="display: flex; gap: 4px; align-items: center; width: 100%; justify-content: center;">
-                  <span style="font-size: 0.72rem; font-weight: 900; background: ${isDone ? '#4F46E5' : '#F43F5E'}; color: #FFF; padding: 2px 8px; border-radius: 999px; line-height: 1.2;">
+                  <button type="button" class="online-toggle-btn" style="border: none; font-size: 0.72rem; font-weight: 900; background: ${isDone ? '#10B981' : '#F43F5E'}; color: #FFF; padding: 2px 8px; border-radius: 999px; line-height: 1.2; cursor: pointer;" title="點擊直接切換【已繳/未交】">
                     ${isDone ? '✓ 已繳' : '✕ 未交'}
-                  </span>
+                  </button>
                   <span style="font-size: 0.66rem; font-weight: 800; background: #6366F1; color: #FFF; padding: 2px 6px; border-radius: 6px;">
                     檢閱/批改
                   </span>
@@ -6120,7 +6129,7 @@ const ClassroomWidgets = {
           progressText.textContent = `已收 ${doneCount} / ${total} 人 (${pct}%)`;
           progressBar.style.width = `${pct}%`;
 
-          // 點擊卡片開啟檢閱批改燈箱
+          // 點擊卡片開啟檢閱批改燈箱；點擊已繳/未交標籤切換狀態
           grid.querySelectorAll('.online-hw-card').forEach(card => {
             const name = card.getAttribute('data-name');
             card.addEventListener('click', (e) => {
@@ -6132,6 +6141,20 @@ const ClassroomWidgets = {
                 }
                 return;
               }
+
+              // 點擊狀態按鈕時直接手動切換已繳/未交
+              if (e.target.closest('.online-toggle-btn')) {
+                ensureActive();
+                rec[name] = !rec[name];
+                if (window.soundEngine && typeof window.soundEngine.playTick === 'function') {
+                  window.soundEngine.playTick();
+                }
+                saveOnlineData();
+                render();
+                return;
+              }
+
+              // 點擊卡片其他地方直接開啟作業檢閱與批改
               openReviewModal(name);
             });
           });
@@ -6726,7 +6749,7 @@ const ClassroomWidgets = {
         } catch(e) {}
 
         const onStorageChange = (e) => {
-          if (e.key && e.key.startsWith('puti_hw_')) {
+          if (e.key && (e.key.startsWith('puti_online_hw_') || e.key.startsWith('puti_hw_'))) {
             onlineData = loadOnlineData(currentDate);
             render();
           }

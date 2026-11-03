@@ -502,14 +502,24 @@
 
       document.getElementById('class-badge').textContent = `🎓 ${currentClassName}`;
 
-      // 載入作業項目清單
-      let subjects = ['作業1', '作業2', '作業3', '攜帶物品'];
+      // 載入作業項目清單（預設作業1、作業2、作業3，彈性自由）
+      let subjects = ['作業1', '作業2', '作業3'];
       try {
-        const hwStored = JSON.parse(localStorage.getItem(`puti_hw_check_${currentClassId}_${urlDate}`));
-        if (hwStored && Array.isArray(hwStored.subjects) && hwStored.subjects.length > 0) {
-          subjects = hwStored.subjects;
+        const onlineStored = JSON.parse(localStorage.getItem(`puti_online_hw_${currentClassId}_${urlDate}`));
+        if (onlineStored && Array.isArray(onlineStored.subjects) && onlineStored.subjects.length > 0) {
+          subjects = onlineStored.subjects;
+        } else {
+          const hwStored = JSON.parse(localStorage.getItem(`puti_hw_check_${currentClassId}_${urlDate}`));
+          if (hwStored && Array.isArray(hwStored.subjects) && hwStored.subjects.length > 0) {
+            subjects = hwStored.subjects;
+          }
         }
       } catch(e) {}
+
+      // 若老師出碼時指定了特定作業科目，確保加入並選中
+      if (urlSub && !subjects.includes(urlSub)) {
+        subjects.unshift(urlSub);
+      }
 
       let selectedStudent = '';
       let selectedSubject = urlSub || subjects[0] || '作業1';
@@ -757,7 +767,18 @@
         subData[selectedSubject][selectedStudent] = payload;
         localStorage.setItem(subKey, JSON.stringify(subData));
 
-        // 2. 標記作業收發通為已繳
+        // 2. 標記線上作業通為【已繳】（確保大螢幕即時轉為綠色「✓ 已繳」）
+        const onlineKey = `puti_online_hw_${currentClassId}_${urlDate}`;
+        let onlineHw = {};
+        try {
+          onlineHw = JSON.parse(localStorage.getItem(onlineKey) || '{}');
+        } catch(e) {}
+        if (!onlineHw.records) onlineHw.records = {};
+        if (!onlineHw.records[selectedSubject]) onlineHw.records[selectedSubject] = {};
+        onlineHw.records[selectedSubject][selectedStudent] = true;
+        localStorage.setItem(onlineKey, JSON.stringify(onlineHw));
+
+        // 同步標記紙本作業收發通為已繳（雙向兼顧）
         const hwKey = `puti_hw_check_${currentClassId}_${urlDate}`;
         let hwData = {};
         try {
