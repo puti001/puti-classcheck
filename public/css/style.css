@@ -2468,3 +2468,30 @@ html[data-screen-scale="huge"] .scale-btn.active {
   border-radius: 16px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
 }
+
+/* Smart Seating Chart Card Styles */
+.seat-desk-cell {
+  user-select: none;
+  cursor: grab;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.seat-desk-cell:active {
+  cursor: grabbing;
+}
+.seat-desk-cell.dragging {
+  opacity: 0.45 !important;
+  border-style: dashed !important;
+}
+.seat-desk-cell.swap-selected {
+  outline: 3px solid #2563EB !important;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.45) !important;
+  transform: scale(1.05);
+}
+.seat-desk-cell.swap-target {
+  outline: 2px dashed #3B82F6 !important;
+  background: #EFF6FF !important;
+}
+.seat-desk-cell:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}

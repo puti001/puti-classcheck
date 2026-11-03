@@ -4646,7 +4646,7 @@ const ClassroomWidgets = {
   },
 
   // =========================================================================
-  // 課堂點名簿 (Classroom Attendance & Roll Call)
+  // 課堂點名簿 (Classroom Attendance & Roll Call) - 雙向連動版
   // =========================================================================
   spawnAttendance(wm) {
     let roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
@@ -4657,7 +4657,7 @@ const ClassroomWidgets = {
     } catch(e){}
 
     const todayStr = new Date().toISOString().split('T')[0];
-    let currentDate = todayStr;
+    let currentDate = localStorage.getItem('puti_active_att_date') || todayStr;
 
     const statusMap = {
       present:  { label: '到齊', badge: '到', bg: '#DCFCE7', color: '#166534', border: '#86EFAC', next: 'late' },
@@ -4678,9 +4678,12 @@ const ClassroomWidgets = {
     };
     ensureData();
 
-    const saveAttendance = () => {
+    const saveAttendance = (source = 'attendance') => {
       localStorage.setItem(getStorageKey(currentDate), JSON.stringify(attendanceData));
-      window.dispatchEvent(new CustomEvent('attendanceUpdated', { detail: attendanceData }));
+      localStorage.setItem('puti_active_att_date', currentDate);
+      window.dispatchEvent(new CustomEvent('attendanceUpdated', {
+        detail: { classId: activeClass, date: currentDate, data: attendanceData, source }
+      }));
     };
 
     const content = `
@@ -4718,7 +4721,7 @@ const ClassroomWidgets = {
 
         <!-- Footer Helper -->
         <div style="font-size: 0.75rem; color: #94A3B8; text-align: center;">
-          💡 點擊學生卡片輪替【到齊 ➜ 遲到 ➜ 病假 ➜ 事假 ➜ 公假 ➜ 曠課】
+          💡 點擊學生卡片輪替出勤狀態（即時與【智慧座位表】雙向同步）
         </div>
       </div>
     `;
@@ -4779,12 +4782,23 @@ const ClassroomWidgets = {
               const cur = attendanceData[name] ? attendanceData[name].status : 'present';
               const next = statusMap[cur] ? statusMap[cur].next : 'present';
               attendanceData[name] = { status: next, note: (attendanceData[name] && attendanceData[name].note) || '' };
-              if (window.soundEngine) window.soundEngine.playTick();
-              saveAttendance();
+              if (window.soundEngine && typeof window.soundEngine.playTick === 'function') {
+                window.soundEngine.playTick();
+              }
+              saveAttendance('attendance');
               render();
             });
           });
         };
+
+        // 雙向即時連動監聽：座位表變更出勤時，點名簿自動即時重繪
+        const onAttendanceUpdated = (e) => {
+          if (e.detail && e.detail.source !== 'attendance') {
+            attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
+            render();
+          }
+        };
+        window.addEventListener('attendanceUpdated', onAttendanceUpdated);
 
         const onRosterUpdated = (e) => {
           if (e.detail && Array.isArray(e.detail)) {
@@ -4801,16 +4815,23 @@ const ClassroomWidgets = {
 
         datePicker.addEventListener('change', (e) => {
           currentDate = e.target.value || todayStr;
+          localStorage.setItem('puti_active_att_date', currentDate);
           attendanceData = JSON.parse(localStorage.getItem(getStorageKey(currentDate)) || '{}');
           render();
+          window.dispatchEvent(new CustomEvent('attendanceUpdated', {
+            detail: { classId: activeClass, date: currentDate, data: attendanceData, source: 'dateChange' }
+          }));
         });
 
         allPresentBtn.addEventListener('click', () => {
           roster.forEach(name => {
             attendanceData[name] = { status: 'present', note: '' };
           });
-          if (window.soundEngine) window.soundEngine.playCoin();
-          saveAttendance();
+          if (window.soundEngine) {
+            if (typeof window.soundEngine.playCoin === 'function') window.soundEngine.playCoin();
+            else if (typeof window.soundEngine.playChime === 'function') window.soundEngine.playChime();
+          }
+          saveAttendance('attendance');
           render();
         });
 
@@ -5099,7 +5120,7 @@ const ClassroomWidgets = {
   },
 
   // =========================================================================
-  // 智慧座位出勤表 (Smart Seating & Attendance Map)
+  // 智慧座位出勤表 (Smart Seating & Attendance Map) - 支援拖曳對調、點選對調與出勤聯動
   // =========================================================================
   spawnSeatingChart(wm) {
     let roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
@@ -5109,53 +5130,86 @@ const ClassroomWidgets = {
       if (classData && classData.activeId) activeClass = classData.activeId;
     } catch(e){}
 
+    let numCols = parseInt(localStorage.getItem(`puti_seats_cols_${activeClass}`) || '6', 10);
+    const totalDesks = 30;
+
     const getSeatKey = () => `puti_seats_${activeClass}`;
     let seatLayout = JSON.parse(localStorage.getItem(getSeatKey()) || 'null');
-    if (!seatLayout || !Array.isArray(seatLayout) || seatLayout.length !== 30) {
+    if (!seatLayout || !Array.isArray(seatLayout) || seatLayout.length !== totalDesks) {
       seatLayout = [...roster];
-      while (seatLayout.length < 30) seatLayout.push('');
+      while (seatLayout.length < totalDesks) seatLayout.push('');
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const getAttKey = () => `puti_att_${activeClass}_${todayStr}`;
-    let attendanceData = JSON.parse(localStorage.getItem(getAttKey()) || '{}');
+    const getActiveDate = () => localStorage.getItem('puti_active_att_date') || todayStr;
+    const getAttKey = () => `puti_att_${activeClass}_${getActiveDate()}`;
 
     const statusBadgeMap = {
-      present:  { label: '到', bg: '#22C55E' },
-      late:     { label: '遲', bg: '#EAB308' },
-      sick:     { label: '病', bg: '#3B82F6' },
-      personal: { label: '事', bg: '#F97316' },
-      official: { label: '公', bg: '#A855F7' },
-      absent:   { label: '缺', bg: '#EF4444' }
+      present:  { label: '到', bg: '#22C55E', color: '#FFF', cardBg: '#F0FDF4', border: '#86EFAC' },
+      late:     { label: '遲', bg: '#EAB308', color: '#FFF', cardBg: '#FEFCE8', border: '#FDE047' },
+      sick:     { label: '病', bg: '#3B82F6', color: '#FFF', cardBg: '#EFF6FF', border: '#93C5FD' },
+      personal: { label: '事', bg: '#F97316', color: '#FFF', cardBg: '#FFF7ED', border: '#FDBA74' },
+      official: { label: '公', bg: '#A855F7', color: '#FFF', cardBg: '#FAF5FF', border: '#D8B4FE' },
+      absent:   { label: '缺', bg: '#EF4444', color: '#FFF', cardBg: '#FEF2F2', border: '#FCA5A5' }
+    };
+
+    const nextStatusMap = {
+      present: 'late',
+      late: 'sick',
+      sick: 'personal',
+      personal: 'official',
+      official: 'absent',
+      absent: 'present'
     };
 
     const saveSeats = () => {
       localStorage.setItem(getSeatKey(), JSON.stringify(seatLayout));
     };
 
+    let selectedSwapIdx = null; // 點選互換狀態
+    let draggedIdx = null;       // 拖曳互換狀態
+
     const content = `
       <div style="display: flex; flex-direction: column; height: 100%; gap: 8px; user-select: none;">
-        <!-- Top Toolbar -->
-        <div style="display: flex; justify-content: space-between; align-items: center; background: #F1F5F9; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #CBD5E1;">
-          <div style="font-weight: 800; font-size: 0.84rem; color: #334155;">
-            <i class="fa-solid fa-chalkboard-user"></i> 講台 / 黑板前排方向
+        <!-- Top Control Bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #F1F5F9; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #CBD5E1; flex-wrap: wrap; gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-weight: 800; font-size: 0.84rem; color: #334155;">
+              <i class="fa-solid fa-chalkboard-user"></i> 講台 / 黑板前排方向
+            </span>
+            <div style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 800; color: #475569;">
+              <span>排數:</span>
+              <select id="seat-cols-select" style="border: 1px solid #CBD5E1; border-radius: 6px; padding: 1px 4px; font-weight: 800; background: #FFF;">
+                <option value="5" ${numCols === 5 ? 'selected' : ''}>5 欄</option>
+                <option value="6" ${numCols === 6 ? 'selected' : ''}>6 欄</option>
+                <option value="7" ${numCols === 7 ? 'selected' : ''}>7 欄</option>
+              </select>
+            </div>
           </div>
-          <div style="display: flex; gap: 6px;">
-            <button type="button" class="action-btn-secondary" id="seat-shuffle-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;">
+          <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+            <button type="button" class="action-btn-secondary" id="seat-tap-swap-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="大觸控螢幕友善：點擊兩位同學即可直接互換位置">
+              <i class="fa-solid fa-arrow-right-arrow-left"></i> 點選互換
+            </button>
+            <button type="button" class="action-btn-secondary" id="seat-shuffle-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="隨機洗牌座位">
               <i class="fa-solid fa-shuffle"></i> 隨機排座
             </button>
-            <button type="button" class="action-btn-secondary" id="seat-reset-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;">
-              <i class="fa-solid fa-arrow-rotate-left"></i> 座號順序
+            <button type="button" class="action-btn-secondary" id="seat-invert-rows-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="前後排座位對調">
+              <i class="fa-solid fa-up-down"></i> 前後對調
+            </button>
+            <button type="button" class="action-btn-secondary" id="seat-reset-btn" style="height: 26px; padding: 0 8px; font-size: 0.74rem;" title="依座號順序重排">
+              <i class="fa-solid fa-arrow-rotate-left"></i> 座號序
             </button>
           </div>
         </div>
 
         <!-- Seating Grid -->
-        <div id="seat-grid-container" style="flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 4px; overflow-y: auto;">
+        <div id="seat-grid-container" style="flex: 1; display: grid; grid-template-columns: repeat(${numCols}, 1fr); gap: 6px; padding: 4px; overflow-y: auto;">
         </div>
 
-        <div style="font-size: 0.72rem; color: #94A3B8; text-align: center;">
-          💡 點擊座位學生可直接同步切換出勤狀態；燈號：🟢到 🟡遲 🔵病 🟠事 🟣公 🔴缺
+        <!-- Helper Instructions -->
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: #64748B; background: #F8FAFC; padding: 3px 8px; border-radius: 8px;">
+          <span>🖐️ 支援【按住卡片拖曳放開對調】或點擊【點選互換】</span>
+          <span>🟢 點擊右上角圓形燈號，立即同步更新出勤狀態</span>
         </div>
       </div>
     `;
@@ -5163,63 +5217,158 @@ const ClassroomWidgets = {
     wm.createWindow({
       title: '智慧座位出勤表',
       icon: 'fa-border-all',
-      width: 620,
-      height: 500,
+      width: 640,
+      height: 520,
       type: 'seating',
       contentHtml: content,
       onInit: (el) => {
         const grid = el.querySelector('#seat-grid-container');
         const shuffleBtn = el.querySelector('#seat-shuffle-btn');
         const resetBtn = el.querySelector('#seat-reset-btn');
+        const invertBtn = el.querySelector('#seat-invert-rows-btn');
+        const tapSwapBtn = el.querySelector('#seat-tap-swap-btn');
+        const colsSelect = el.querySelector('#seat-cols-select');
+
+        let isTapSwapMode = false;
+
+        const swapSeats = (fromIdx, toIdx) => {
+          if (fromIdx === toIdx || fromIdx === null || toIdx === null) return;
+          const temp = seatLayout[fromIdx];
+          seatLayout[fromIdx] = seatLayout[toIdx];
+          seatLayout[toIdx] = temp;
+          saveSeats();
+          if (window.soundEngine && typeof window.soundEngine.playPop === 'function') {
+            window.soundEngine.playPop();
+          }
+          renderGrid();
+        };
 
         const renderGrid = () => {
-          attendanceData = JSON.parse(localStorage.getItem(getAttKey()) || '{}');
+          const attData = JSON.parse(localStorage.getItem(getAttKey()) || '{}');
+
+          grid.style.gridTemplateColumns = `repeat(${numCols}, 1fr)`;
 
           grid.innerHTML = seatLayout.map((name, idx) => {
+            const isSelected = isTapSwapMode && selectedSwapIdx === idx;
+
             if (!name) {
               return `
-                <div style="background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 10px; padding: 8px 2px; text-align: center; color: #94A3B8; font-size: 0.76rem; min-height: 58px; display: flex; align-items: center; justify-content: center;">
-                  空位
+                <div class="seat-desk-cell empty ${isSelected ? 'swap-target' : ''}" data-idx="${idx}" draggable="true"
+                  style="background: #F8FAFC; border: 2px dashed ${isSelected ? '#2563EB' : '#CBD5E1'}; border-radius: 10px; padding: 8px 2px; text-align: center; color: #94A3B8; font-size: 0.76rem; min-height: 60px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;">
+                  <span style="opacity: 0.6;">(空位)</span>
                 </div>
               `;
             }
 
-            const att = attendanceData[name] || { status: 'present' };
-            const badge = statusBadgeMap[att.status] || statusBadgeMap.present;
+            const att = attData[name] || { status: 'present' };
+            const conf = statusBadgeMap[att.status] || statusBadgeMap.present;
 
             return `
-              <div class="seat-card-item" data-idx="${idx}" data-name="${name}" style="background: #FFF; border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 6px 2px; text-align: center; cursor: pointer; transition: all 0.15s; position: relative; min-height: 58px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-                <div style="font-size: 0.8rem; font-weight: 800; color: #1E293B; max-width: 95%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</div>
-                <span style="position: absolute; top: 2px; right: 2px; font-size: 0.65rem; font-weight: 900; background: ${badge.bg}; color: #FFF; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">${badge.label}</span>
+              <div class="seat-desk-cell occupied ${isSelected ? 'swap-selected' : ''}" data-idx="${idx}" data-name="${name}" draggable="true"
+                style="background: ${conf.cardBg}; border: 2px solid ${isSelected ? '#2563EB' : conf.border}; border-radius: 10px; padding: 6px 4px; text-align: center; cursor: grab; transition: transform 0.1s, box-shadow 0.1s; position: relative; min-height: 60px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="font-size: 0.82rem; font-weight: 800; color: #1E293B; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  ${name}
+                </div>
+                <!-- Interactive Attendance Badge -->
+                <button type="button" class="seat-att-badge-btn" data-name="${name}" title="點擊切換出勤狀態（目前：${conf.label}）"
+                  style="position: absolute; top: 3px; right: 3px; font-size: 0.68rem; font-weight: 900; background: ${conf.bg}; color: ${conf.color}; width: 18px; height: 18px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; box-shadow: 0 1px 2px rgba(0,0,0,0.15);">
+                  ${conf.label}
+                </button>
               </div>
             `;
           }).join('');
 
-          grid.querySelectorAll('.seat-card-item').forEach(card => {
-            card.addEventListener('click', () => {
-              const name = card.getAttribute('data-name');
-              const nextStatusCycle = {
-                present: 'late',
-                late: 'sick',
-                sick: 'personal',
-                personal: 'official',
-                official: 'absent',
-                absent: 'present'
-              };
-              const cur = (attendanceData[name] && attendanceData[name].status) || 'present';
-              const nxt = nextStatusCycle[cur] || 'present';
-              attendanceData[name] = { status: nxt, note: (attendanceData[name] && attendanceData[name].note) || '' };
-              localStorage.setItem(getAttKey(), JSON.stringify(attendanceData));
-              window.dispatchEvent(new CustomEvent('attendanceUpdated', { detail: attendanceData }));
-              if (window.soundEngine) window.soundEngine.playTick();
+          // 綁定卡片拖曳與點選對調事件
+          grid.querySelectorAll('.seat-desk-cell').forEach(cell => {
+            const idx = parseInt(cell.getAttribute('data-idx'), 10);
+
+            // Drag Start
+            cell.addEventListener('dragstart', (e) => {
+              draggedIdx = idx;
+              cell.style.opacity = '0.4';
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', idx);
+            });
+
+            cell.addEventListener('dragend', () => {
+              cell.style.opacity = '1';
+              grid.querySelectorAll('.seat-desk-cell').forEach(c => c.style.outline = 'none');
+            });
+
+            cell.addEventListener('dragover', (e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              cell.style.outline = '2px dashed #3B82F6';
+            });
+
+            cell.addEventListener('dragleave', () => {
+              cell.style.outline = 'none';
+            });
+
+            cell.addEventListener('drop', (e) => {
+              e.preventDefault();
+              cell.style.outline = 'none';
+              const from = draggedIdx !== null ? draggedIdx : parseInt(e.dataTransfer.getData('text/plain'), 10);
+              if (!isNaN(from) && from !== idx) {
+                swapSeats(from, idx);
+              }
+              draggedIdx = null;
+            });
+
+            // Click: Swap mode vs Card selection
+            cell.addEventListener('click', (e) => {
+              if (e.target.closest('.seat-att-badge-btn')) return; // 點擊燈號則不觸發換位
+
+              if (isTapSwapMode) {
+                if (selectedSwapIdx === null) {
+                  selectedSwapIdx = idx;
+                  renderGrid();
+                } else if (selectedSwapIdx === idx) {
+                  selectedSwapIdx = null;
+                  renderGrid();
+                } else {
+                  swapSeats(selectedSwapIdx, idx);
+                  selectedSwapIdx = null;
+                }
+              }
+            });
+          });
+
+          // 綁定座位上的出勤燈號點擊事件（循環切換並同步廣播）
+          grid.querySelectorAll('.seat-att-badge-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const name = btn.getAttribute('data-name');
+              const curDate = getActiveDate();
+              const curAttData = JSON.parse(localStorage.getItem(getAttKey()) || '{}');
+
+              const curStatus = (curAttData[name] && curAttData[name].status) || 'present';
+              const nextStatus = nextStatusMap[curStatus] || 'present';
+
+              curAttData[name] = { status: nextStatus, note: (curAttData[name] && curAttData[name].note) || '' };
+              localStorage.setItem(getAttKey(), JSON.stringify(curAttData));
+
+              if (window.soundEngine && typeof window.soundEngine.playTick === 'function') {
+                window.soundEngine.playTick();
+              }
+
+              // 雙向即時廣播，通知點名簿同步更新
+              window.dispatchEvent(new CustomEvent('attendanceUpdated', {
+                detail: { classId: activeClass, date: curDate, data: curAttData, source: 'seating' }
+              }));
+
               renderGrid();
             });
           });
         };
 
-        const onAttUpdated = () => renderGrid();
-        window.addEventListener('attendanceUpdated', onAttUpdated);
+        // 監聽點名簿即時更新
+        const onAttendanceUpdated = () => {
+          renderGrid();
+        };
+        window.addEventListener('attendanceUpdated', onAttendanceUpdated);
 
+        // 監聽班級名冊更新
         const onRosterUpdated = (e) => {
           if (e.detail && Array.isArray(e.detail)) {
             roster = [...e.detail];
@@ -5228,25 +5377,74 @@ const ClassroomWidgets = {
               if (classData && classData.activeId) activeClass = classData.activeId;
             } catch(err){}
             seatLayout = [...roster];
-            while (seatLayout.length < 30) seatLayout.push('');
+            while (seatLayout.length < totalDesks) seatLayout.push('');
             saveSeats();
             renderGrid();
           }
         };
         window.addEventListener('rosterUpdated', onRosterUpdated);
 
+        // 點選互換模式切換按鈕
+        tapSwapBtn.addEventListener('click', () => {
+          isTapSwapMode = !isTapSwapMode;
+          selectedSwapIdx = null;
+          tapSwapBtn.style.background = isTapSwapMode ? '#EFF6FF' : '';
+          tapSwapBtn.style.color = isTapSwapMode ? '#1D4ED8' : '';
+          tapSwapBtn.style.fontWeight = isTapSwapMode ? '900' : '';
+          tapSwapBtn.style.borderColor = isTapSwapMode ? '#3B82F6' : '';
+          tapSwapBtn.innerHTML = isTapSwapMode ? '<i class="fa-solid fa-hand-pointer"></i> 點選互換中...' : '<i class="fa-solid fa-arrow-right-arrow-left"></i> 點選互換';
+          renderGrid();
+        });
+
+        // 欄數切換
+        colsSelect.addEventListener('change', (e) => {
+          numCols = parseInt(e.target.value, 10);
+          localStorage.setItem(`puti_seats_cols_${activeClass}`, numCols);
+          renderGrid();
+        });
+
+        // 隨機排座
         shuffleBtn.addEventListener('click', () => {
           seatLayout = [...seatLayout].sort(() => Math.random() - 0.5);
-          if (window.soundEngine) window.soundEngine.playCoin();
+          if (typeof confetti === 'function') confetti({ particleCount: 40, spread: 50 });
+          if (window.soundEngine && typeof window.soundEngine.playFanfare === 'function') {
+            window.soundEngine.playFanfare();
+          }
           saveSeats();
           renderGrid();
         });
 
+        // 前後對調 (每一欄的前後顛倒)
+        invertBtn.addEventListener('click', () => {
+          const rows = Math.ceil(totalDesks / numCols);
+          const newGrid = [...seatLayout];
+          for (let col = 0; col < numCols; col++) {
+            for (let r = 0; r < Math.floor(rows / 2); r++) {
+              const topIdx = r * numCols + col;
+              const botIdx = (rows - 1 - r) * numCols + col;
+              if (topIdx < totalDesks && botIdx < totalDesks) {
+                const temp = newGrid[topIdx];
+                newGrid[topIdx] = newGrid[botIdx];
+                newGrid[botIdx] = temp;
+              }
+            }
+          }
+          seatLayout = newGrid;
+          saveSeats();
+          if (window.soundEngine && typeof window.soundEngine.playPop === 'function') {
+            window.soundEngine.playPop();
+          }
+          renderGrid();
+        });
+
+        // 依座號順序
         resetBtn.addEventListener('click', () => {
           seatLayout = [...roster];
-          while (seatLayout.length < 30) seatLayout.push('');
-          if (window.soundEngine) window.soundEngine.playTick();
+          while (seatLayout.length < totalDesks) seatLayout.push('');
           saveSeats();
+          if (window.soundEngine && typeof window.soundEngine.playTick === 'function') {
+            window.soundEngine.playTick();
+          }
           renderGrid();
         });
 
@@ -5254,7 +5452,6 @@ const ClassroomWidgets = {
       }
     });
   }
-
 };
 
 window.ClassroomWidgets = ClassroomWidgets;
