@@ -311,6 +311,9 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 260px;
+  max-width: calc(100vw - 12px);
+  max-height: calc(100vh - 64px);
+  box-sizing: border-box;
   min-height: 180px;
   transition: box-shadow 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
   user-select: none;
@@ -1379,7 +1382,12 @@ ruby.zy-box .zy-side-tone {
     left: 8px;
     right: 8px;
     height: 46px;
-    padding: 0 12px;
+    padding: 0 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .top-actions {
+    flex-shrink: 0;
   }
   .ticker-section {
     display: none;

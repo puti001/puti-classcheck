@@ -543,6 +543,8 @@
       subjects = [...new Set(subjects)];
 
       // D. 若教師端有指定當前作業科目，確保對齊
+      let selectedStudent = '';
+      let selectedSubject = subjects[0] || '作業1';
       let cleanUrlSub = urlSub ? decodeURIComponent(urlSub).trim() : '';
       if (cleanUrlSub === '課堂作業') cleanUrlSub = '作業1';
       if (cleanUrlSub === '短文寫作') cleanUrlSub = '作業2';

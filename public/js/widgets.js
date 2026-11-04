@@ -166,6 +166,14 @@ const ClassroomWidgets = {
   // 家庭聯絡簿 (Homework & Contact Book) - 使用者自由自訂項目、動態增減與登記繳交連動
   // =========================================================================
   spawnContactBook(wm) {
+    let existingWin = null;
+    wm.windows.forEach(w => {
+      if (w.type === 'contact') existingWin = w;
+    });
+    if (existingWin) {
+      wm.bringToFront(existingWin);
+      return existingWin;
+    }
     let activeClass = 'default';
     try {
       const classData = JSON.parse(localStorage.getItem('puti_classes_data'));
@@ -4771,6 +4779,15 @@ const ClassroomWidgets = {
     const todayStr = new Date().toISOString().split('T')[0];
     let currentDate = localStorage.getItem('puti_active_att_date') || todayStr;
 
+    let existingWin = null;
+    wm.windows.forEach(w => {
+      if (w.type === 'attendance') existingWin = w;
+    });
+    if (existingWin) {
+      wm.bringToFront(existingWin);
+      return existingWin;
+    }
+
     // 8大出勤狀態定義（刪除缺席，加入病假、事假、公假、喪假、遲到、早退、其他）
     const statusMap = {
       present:      { label: '出席', bg: '#DCFCE7', color: '#166534', border: '#86EFAC', icon: 'fa-check', next: 'sick' },
@@ -4812,7 +4829,7 @@ const ClassroomWidgets = {
         <!-- Top Toolbar -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #E2E8F0; gap: 6px; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 6px;">
-            <input type="date" id="att-date-picker" value="${currentDate}"
+            <input type="date" id="att-date-picker" value="${currentDate}" aria-label="選擇點名日期"
               style="padding: 2px 6px; border-radius: 6px; border: 1.5px solid #CBD5E1; font-weight: 800; color: #334155; font-size: 0.82rem; outline: none; background: #FFF; cursor: pointer;">
             <button type="button" class="action-btn-main" id="att-all-present-btn" style="height: 28px; padding: 0 10px; font-size: 0.76rem; background: linear-gradient(135deg, #10B981, #059669);" title="將全班一鍵重設為出席">
               <i class="fa-solid fa-check-double"></i> 全員到齊
@@ -4951,7 +4968,7 @@ const ClassroomWidgets = {
             const hasNote = !!item.note;
 
             return `
-              <div class="att-student-card" data-name="${name}"
+              <div class="att-student-card" data-name="${name}" role="button" tabindex="0" aria-label="${name}，出勤狀態：${cfg.label}，點擊或按Enter鍵切換狀態"
                 style="background: ${cfg.bg}; border: 1.5px solid ${cfg.border}; border-radius: 12px; padding: 6px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; position: relative; min-height: 54px; box-sizing: border-box;">
                 
                 <div class="att-student-name" style="font-size: 0.86rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%;">
@@ -4979,6 +4996,12 @@ const ClassroomWidgets = {
 
           // 綁定卡片點擊循環切換假別
           grid.querySelectorAll('.att-student-card').forEach(card => {
+            card.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                card.click();
+              }
+            });
             card.addEventListener('click', (e) => {
               if (e.target.closest('.att-note-btn')) return;
               const name = card.getAttribute('data-name');
@@ -5334,7 +5357,7 @@ const ClassroomWidgets = {
         <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #E2E8F0; gap: 6px; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <label style="font-size: 0.8rem; font-weight: 800; color: #475569;"><i class="fa-solid fa-calendar-day"></i> 登記日期:</label>
-            <input type="date" id="hw-check-date-picker" value="${currentDate}"
+            <input type="date" id="hw-check-date-picker" value="${currentDate}" aria-label="選擇紙本作業收發日期"
               style="padding: 2px 6px; border-radius: 6px; border: 1.5px solid #CBD5E1; font-weight: 800; color: #334155; font-size: 0.82rem; outline: none; background: #FFF; cursor: pointer;">
             <select id="hw-from-contact-select" style="max-width: 170px; padding: 2px 6px; border-radius: 6px; border: 1.5px solid #FFC078; font-weight: 800; color: #9A3412; background: #FFF7ED; font-size: 0.78rem; outline: none; cursor: pointer;" title="從指定日期的聯絡簿直接叫出作業項目">
               <option value="">📖 載入聯絡簿作業...</option>
@@ -5520,7 +5543,7 @@ const ClassroomWidgets = {
             if (isDone) doneCount++;
 
             return `
-              <div class="hw-check-card" data-name="${name}" style="background: ${isDone ? '#DCFCE7' : '#FFF1F2'}; border: 1.5px solid ${isDone ? '#86EFAC' : '#FECDD3'}; border-radius: 12px; padding: 6px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 54px;">
+              <div class="hw-check-card" data-name="${name}" role="button" tabindex="0" aria-label="${name}，作業收發狀態：${isDone ? '已繳' : '未交'}，點擊或按Enter鍵切換" style="background: ${isDone ? '#DCFCE7' : '#FFF1F2'}; border: 1.5px solid ${isDone ? '#86EFAC' : '#FECDD3'}; border-radius: 12px; padding: 6px 4px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 54px;">
                 <div class="hw-student-name" style="font-size: 0.86rem; font-weight: 800; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%;">${name}</div>
                 <span class="hw-status-badge" style="font-size: 0.72rem; font-weight: 900; background: ${isDone ? '#10B981' : '#F43F5E'}; color: #FFF; padding: 2px 8px; border-radius: 999px; line-height: 1.2;">
                   ${isDone ? '✓ 已繳' : '✕ 未交'}
@@ -5536,6 +5559,12 @@ const ClassroomWidgets = {
           progressBar.style.width = `${pct}%`;
 
           grid.querySelectorAll('.hw-check-card').forEach(card => {
+            card.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                card.click();
+              }
+            });
             card.addEventListener('click', () => {
               const name = card.getAttribute('data-name');
               ensureActiveSubject();
@@ -5909,7 +5938,7 @@ const ClassroomWidgets = {
         <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 6px 10px; border-radius: 12px; border: 1.5px solid #E2E8F0; gap: 6px; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <label style="font-size: 0.8rem; font-weight: 800; color: #475569;"><i class="fa-solid fa-calendar-day"></i> 作業日期:</label>
-            <input type="date" id="online-hw-date-picker" value="${currentDate}"
+            <input type="date" id="online-hw-date-picker" value="${currentDate}" aria-label="選擇線上作業日期"
               style="padding: 2px 6px; border-radius: 6px; border: 1.5px solid #CBD5E1; font-weight: 800; color: #334155; font-size: 0.82rem; outline: none; background: #FFF; cursor: pointer;">
             
             <!-- 彈性直欄切換 -->
@@ -6140,7 +6169,7 @@ const ClassroomWidgets = {
             const isCompared = selectedForCompare.includes(name);
 
             return `
-              <div class="online-hw-card ${isCompared ? 'compared-selected' : ''}" data-name="${name}"
+              <div class="online-hw-card ${isCompared ? 'compared-selected' : ''}" data-name="${name}" role="button" tabindex="0" aria-label="${name}，線上作業狀態：${isDone ? '已繳' : '未交'}，按下Enter開啟檢閱批改"
                 style="background: ${isDone ? '#EEF2FF' : '#FFF1F2'}; border: 1.5px solid ${isCompared ? '#8B5CF6' : (isDone ? '#A5B4FC' : '#FECDD3')}; border-radius: 12px; padding: 4px 3px; text-align: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 2px; min-height: 48px; position: relative;">
                 
                 ${isCompareMode ? `
@@ -6180,6 +6209,12 @@ const ClassroomWidgets = {
           // 點擊卡片開啟檢閱批改燈箱；點擊已繳/未交標籤切換狀態
           grid.querySelectorAll('.online-hw-card').forEach(card => {
             const name = card.getAttribute('data-name');
+            card.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                card.click();
+              }
+            });
             card.addEventListener('click', (e) => {
               if (isCompareMode) {
                 const chk = card.querySelector('.compare-chk');
@@ -6821,6 +6856,14 @@ const ClassroomWidgets = {
       // 班級座位表 (Classroom Seating Chart) - 純排座功能、拖曳放大動態字級
   // =========================================================================
   spawnSeatingChart(wm) {
+    let existingWin = null;
+    wm.windows.forEach(w => {
+      if (w.type === 'seating') existingWin = w;
+    });
+    if (existingWin) {
+      wm.bringToFront(existingWin);
+      return existingWin;
+    }
     let roster = JSON.parse(localStorage.getItem('puti_student_roster') || 'null') || Array.from({ length: 30 }, (_, i) => `${i + 1} 號同學`);
     let activeClass = 'default';
     try {

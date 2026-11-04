@@ -39,9 +39,19 @@ class WindowManager {
     let finalX = x !== null ? x : 40 + spawnIndex * this.staggerOffset;
     let finalY = y !== null ? y : 30 + spawnIndex * this.staggerOffset;
 
+    // Responsive screen width/height clamp for mobile and tablet
+    if (canvasRect.width > 0 && width > canvasRect.width - 16) {
+      width = Math.max(minWidth || 260, canvasRect.width - 16);
+    }
+    if (canvasRect.height > 0 && height > canvasRect.height - 60) {
+      height = Math.max(minHeight || 180, canvasRect.height - 60);
+    }
+
     // Bounds checking
-    if (finalX + width > canvasRect.width) finalX = Math.max(10, canvasRect.width - width - 20);
-    if (finalY + height > canvasRect.height) finalY = Math.max(10, canvasRect.height - height - 20);
+    if (finalX + width > canvasRect.width) finalX = Math.max(8, canvasRect.width - width - 8);
+    if (finalY + height > canvasRect.height) finalY = Math.max(8, canvasRect.height - height - 8);
+    if (finalX < 8) finalX = 8;
+    if (finalY < 8) finalY = 8;
 
     const winEl = document.createElement('div');
     winEl.className = 'floating-window active';
