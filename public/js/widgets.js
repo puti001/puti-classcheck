@@ -250,7 +250,7 @@ const ClassroomWidgets = {
           <div class="hw-title-group" style="display: flex; align-items: center; gap: 8px;">
             <i class="fa-solid fa-book-open-reader" style="color: #3A86FF;"></i>
             <span style="font-weight: 900; font-size: 0.95rem; color: #1E293B;">家庭聯絡簿</span>
-            <input type="date" id="contact-date-picker" value="${currentDate}"
+            <input type="date" id="contact-date-picker" value="${currentDate}" aria-label="選擇聯絡簿日期"
               style="padding: 2px 6px; border-radius: 6px; border: 1.5px solid #CBD5E1; font-weight: 800; color: #334155; font-size: 0.82rem; outline: none; background: #FFF; cursor: pointer;">
             <span id="contact-day-str" style="font-size: 0.8rem; color: #64748B; font-weight: 800;"></span>
           </div>
@@ -4026,7 +4026,7 @@ const ClassroomWidgets = {
         <!-- Top Target Title & Date Picker -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: #FFF9DB; padding: 6px 10px; border-radius: 10px; border: 1px dashed #FFE066; gap: 6px;">
           <input type="text" id="dc-title-input" value="${targetTitle}" placeholder="倒數事件名稱..." style="flex: 1; padding: 4px 8px; border: 1px solid #CED4DA; border-radius: 6px; font-weight: 800; font-size: 0.85rem; outline: none;">
-          <input type="date" id="dc-date-input" value="${targetDateStr}" style="padding: 4px 6px; border: 1px solid #CED4DA; border-radius: 6px; font-weight: 800; font-size: 0.8rem; outline: none; cursor: pointer;">
+          <input type="date" id="dc-date-input" value="${targetDateStr}" aria-label="選擇倒數目標日期" style="padding: 4px 6px; border: 1px solid #CED4DA; border-radius: 6px; font-weight: 800; font-size: 0.8rem; outline: none; cursor: pointer;">
         </div>
 
         <!-- Giant Countdown Display -->
@@ -6264,7 +6264,8 @@ const ClassroomWidgets = {
           const currentOrigin = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
           const subsParam = encodeURIComponent(onlineData.subjects.join(','));
           const currentSub = encodeURIComponent(onlineData.activeSubject);
-          const studentUrl = `${currentOrigin}student-hw.html?class=${encodeURIComponent(activeClass)}&date=${encodeURIComponent(currentDate)}&sub=${currentSub}&subs=${subsParam}`;
+          const currentRoom = (window.realtimeEngine && window.realtimeEngine.room) || localStorage.getItem('puti_classroom_room') || 'PUTI';
+          const studentUrl = `${currentOrigin}student-hw.html?class=${encodeURIComponent(activeClass)}&date=${encodeURIComponent(currentDate)}&sub=${currentSub}&subs=${subsParam}&room=${encodeURIComponent(currentRoom)}`;
 
           if (typeof window.openQRLightbox === 'function') {
             window.openQRLightbox(
@@ -6816,19 +6817,42 @@ const ClassroomWidgets = {
         };
         window.addEventListener('rosterUpdated', onRosterUpdated);
 
-        // 學生平板即時上傳監聽
+        // 學生平板即時上傳監聽 (支援 MQTT 跨實體裝置 + BroadcastChannel 本機)
+        const handleIncomingSubmission = (p) => {
+          if (!p || p.classId !== activeClass || p.date !== currentDate) return;
+          try {
+            const subKey = getSubStorageKey(currentDate);
+            const subData = JSON.parse(localStorage.getItem(subKey) || '{}');
+            if (!subData[p.subject]) subData[p.subject] = {};
+            subData[p.subject][p.studentName] = p;
+            localStorage.setItem(subKey, JSON.stringify(subData));
+
+            const onKey = getOnlineStorageKey(currentDate);
+            const onData = JSON.parse(localStorage.getItem(onKey) || '{}');
+            if (!onData.records) onData.records = {};
+            if (!onData.records[p.subject]) onData.records[p.subject] = {};
+            onData.records[p.subject][p.studentName] = true;
+            localStorage.setItem(onKey, JSON.stringify(onData));
+          } catch(e) {}
+
+          if (window.soundEngine && typeof window.soundEngine.playCoin === 'function') {
+            window.soundEngine.playCoin();
+          }
+          onlineData = loadOnlineData(currentDate);
+          render();
+        };
+
+        if (window.realtimeEngine) {
+          window.realtimeEngine.subscribe('hw/submit', (data) => {
+            handleIncomingSubmission(data);
+          });
+        }
+
         try {
           bc = new BroadcastChannel('puti_hw_channel');
           bc.onmessage = (e) => {
             if (e.data && e.data.type === 'hw_submitted') {
-              const p = e.data.payload;
-              if (p && p.classId === activeClass && p.date === currentDate) {
-                if (window.soundEngine && typeof window.soundEngine.playCoin === 'function') {
-                  window.soundEngine.playCoin();
-                }
-                onlineData = loadOnlineData(currentDate);
-                render();
-              }
+              handleIncomingSubmission(e.data.payload);
             }
           };
         } catch(e) {}

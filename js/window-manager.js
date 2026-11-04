@@ -14,7 +14,7 @@ class WindowManager {
   }
 
   createWindow(options) {
-    const {
+    let {
       id = 'win_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       title = '工具視窗',
       icon = 'fa-shapes',

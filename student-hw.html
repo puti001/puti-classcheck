@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 
   <style>
     :root {
@@ -477,6 +478,27 @@
       const urlClass = params.get('class') || '';
       const urlDate = params.get('date') || new Date().toISOString().split('T')[0];
       const urlSub = params.get('sub') ? decodeURIComponent(params.get('sub')) : '';
+      const urlRoom = params.get('room') || 'PUTI';
+
+      // MQTT 跨裝置跨網路即時通訊引擎 (支援實體平板/手機/跨瀏覽器)
+      let mqttClient = null;
+      try {
+        if (typeof Paho !== 'undefined') {
+          const clientId = 'std_' + Math.random().toString(36).substring(2, 9);
+          mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, '/mqtt', clientId);
+          mqttClient.connect({
+            useSSL: true,
+            timeout: 5,
+            onSuccess: () => console.log('[MQTT] Connected to room:', urlRoom),
+            onFailure: () => {
+              try {
+                mqttClient = new Paho.MQTT.Client('broker.hivemq.com', 8884, '/mqtt', clientId);
+                mqttClient.connect({ useSSL: true, timeout: 5 });
+              } catch(e) {}
+            }
+          });
+        }
+      } catch(e) {}
 
       // 載入班級資料
       let classData = null;
@@ -823,10 +845,19 @@
         hwData.records[selectedSubject][selectedStudent] = true;
         localStorage.setItem(hwKey, JSON.stringify(hwData));
 
-        // 3. 跨標籤頁廣播給大螢幕
+        // 3. 跨標籤頁廣播給大螢幕 (同瀏覽器)
         if (bc) {
           try {
             bc.postMessage({ type: 'hw_submitted', payload });
+          } catch(e) {}
+        }
+
+        // 3b. 透過 MQTT 跨裝置即時通訊發送給教師端大螢幕 (支援實體平板/手機/跨網路)
+        if (mqttClient && mqttClient.isConnected()) {
+          try {
+            const mqttMsg = new Paho.MQTT.Message(JSON.stringify(payload));
+            mqttMsg.destinationName = `puti/class/${urlRoom}/hw/submit`;
+            mqttClient.send(mqttMsg);
           } catch(e) {}
         }
 
